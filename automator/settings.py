@@ -49,7 +49,7 @@ WSGI_APPLICATION = "automator.wsgi.application"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -78,6 +78,10 @@ if not DEBUG and not DATABASES["default"]["PASSWORD"]:
     raise ValueError("POSTGRES_PASSWORD is required")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+LOGIN_URL = "/auth/login/"
+LOGIN_REDIRECT_URL = "/tenants/"
+LOGOUT_REDIRECT_URL = "/auth/login/"
 
 # --- Auth ---
 
