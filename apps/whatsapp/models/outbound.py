@@ -1,0 +1,79 @@
+from datetime import timedelta
+
+from django.db import models
+from django.utils import timezone
+
+from .account import BitrixAccount
+from .contact import WhatsAppContact
+from .message import MessageLog
+from .templates import MessageTemplate
+
+
+class OutboundMessage(models.Model):
+    class Status(models.TextChoices):
+        QUEUED = "queued", "Queued"
+        SENDING = "sending", "Sending"
+        SENT = "sent", "Sent"
+        FAILED = "failed", "Failed"
+        CANCELLED = "cancelled", "Cancelled"
+
+    MAX_ATTEMPTS = 5
+
+    bitrix_account = models.ForeignKey(BitrixAccount, on_delete=models.CASCADE)
+    contact = models.ForeignKey(WhatsAppContact, on_delete=models.CASCADE)
+
+    template = models.ForeignKey(
+        MessageTemplate, blank=True, null=True, on_delete=models.SET_NULL
+    )
+
+    payload = models.JSONField()
+    idempotency_key = models.CharField(max_length=255, blank=True, null=True)
+
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.QUEUED
+    )
+
+    scheduled_at = models.DateTimeField(default=timezone.now)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    next_attempt_at = models.DateTimeField(blank=True, null=True)
+    last_error = models.TextField(blank=True, null=True)
+
+    message_log = models.OneToOneField(
+        MessageLog, blank=True, null=True, on_delete=models.SET_NULL,
+        related_name="outbound_source",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    sent_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["status", "scheduled_at"]),            # drain worker
+            models.Index(fields=["bitrix_account", "status"]),          # rate limiter
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["bitrix_account", "idempotency_key"],
+                condition=models.Q(idempotency_key__isnull=False),
+                name="unique_outbound_idempotency",
+            ),
+        ]
+
+    def mark_failed(self, error: str):
+        self.attempts += 1
+        self.last_error = error[:5000]
+        if self.attempts >= self.MAX_ATTEMPTS:
+            self.status = self.Status.FAILED
+            self.next_attempt_at = None
+        else:
+            # Exponential backoff: 1, 2, 4, 8 minutes…
+            self.status = self.Status.QUEUED
+            self.next_attempt_at = timezone.now() + timedelta(
+                minutes=2 ** (self.attempts - 1)
+            )
+        self.save(update_fields=[
+            "attempts", "last_error", "status", "next_attempt_at",
+        ])
+
+    def __str__(self):
+        return f"-> {self.contact.phone_number} [{self.status}]"
