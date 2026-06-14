@@ -30,6 +30,24 @@ def tenants_page(request):
     return render(request, "bitrix/tenants.html")
 
 
+def _subscription_json(account):
+    try:
+        sub = account.subscription
+    except Exception:
+        return None
+    from apps.billing.models import UsageSummary
+    return {
+        "plan_name": sub.plan.name,
+        "plan_slug": sub.plan.slug,
+        "status": sub.status,
+        "is_active": sub.is_active,
+        "conversations_used": UsageSummary.get_current_usage(account),
+        "conversations_limit": sub.plan.max_conversations_per_month,
+        "trial_ends_at": sub.trial_ends_at.date().isoformat() if sub.trial_ends_at else None,
+        "current_period_end": sub.current_period_end.date().isoformat() if sub.current_period_end else None,
+    }
+
+
 def _account_json(account):
     return {
         "id": account.pk,
@@ -38,6 +56,7 @@ def _account_json(account):
         "is_active": account.is_active,
         "token_ok": not account.token_needs_refresh,
         "created_at": account.created_at.date().isoformat(),
+        "subscription": _subscription_json(account),
     }
 
 
@@ -59,7 +78,7 @@ def _parse(request):
 @require_http_methods(["GET", "POST"])
 def tenants_api(request):
     if request.method == "GET":
-        accounts = BitrixAccount.objects.order_by("-created_at")
+        accounts = BitrixAccount.objects.select_related("subscription__plan").order_by("-created_at")
         return JsonResponse([_account_json(a) for a in accounts], safe=False)
 
     body = _parse(request)
@@ -119,6 +138,14 @@ def tenant_numbers_api(request, pk):
     phone_number_id = body.get("phone_number_id", "").strip()
     if not phone_number_id:
         return JsonResponse({"error": "phone_number_id is required"}, status=400)
+
+    try:
+        from apps.billing.limits import LimitChecker, PlanLimitExceeded
+        LimitChecker(account).check_whatsapp_number()
+    except Exception as exc:
+        from apps.billing.limits import PlanLimitExceeded
+        if isinstance(exc, PlanLimitExceeded):
+            return JsonResponse({"error": str(exc)}, status=403)
 
     number, created = WhatsAppBusinessNumber.objects.get_or_create(
         bitrix_account=account,

@@ -8,4 +8,5 @@ urlpatterns = [
     path("auth/logout/", auth_views.LogoutView.as_view(), name="logout"),
     path("auth/bitrix/", include("apps.bitrix.urls")),
     path("tenants/", include("apps.bitrix.tenant_urls")),
+    path("billing/", include("apps.billing.urls", namespace="billing")),
 ]

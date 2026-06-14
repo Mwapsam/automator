@@ -76,6 +76,41 @@
                   x-text="t.token_ok ? 'Token OK' : 'Token Expired'">
             </span>
 
+            <!-- Plan badge -->
+            <template x-if="t.subscription">
+              <span :class="{
+                      'bg-purple-50 text-purple-700': t.subscription.status === 'active',
+                      'bg-yellow-50 text-yellow-700': t.subscription.status === 'trialing',
+                      'bg-red-50 text-red-600':       t.subscription.status === 'expired',
+                      'bg-gray-100 text-gray-500':    !['active','trialing','expired'].includes(t.subscription.status),
+                    }"
+                    class="hidden sm:inline text-xs font-medium px-2 py-0.5 rounded-md shrink-0"
+                    x-text="t.subscription.plan_name + (t.subscription.status === 'trialing' ? ' (Trial)' : t.subscription.status === 'expired' ? ' · Expired' : '')">
+              </span>
+            </template>
+
+            <!-- Usage bar -->
+            <template x-if="t.subscription && t.subscription.conversations_limit > 0">
+              <div class="w-20 hidden md:block shrink-0">
+                <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div class="h-full rounded-full transition-all"
+                       :class="(t.subscription.conversations_used / t.subscription.conversations_limit) >= 0.9 ? 'bg-red-500' : 'bg-blue-500'"
+                       :style="`width:${Math.min(100, t.subscription.conversations_used / t.subscription.conversations_limit * 100)}%`">
+                  </div>
+                </div>
+                <p class="text-[10px] text-gray-400 mt-0.5 text-right"
+                   x-text="`${t.subscription.conversations_used}/${t.subscription.conversations_limit}`"></p>
+              </div>
+            </template>
+
+            <!-- Upgrade link -->
+            <template x-if="t.subscription && t.subscription.plan_slug !== 'business'">
+              <a :href="`/billing/plans/?account=${t.id}`"
+                 class="hidden sm:inline text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline shrink-0">
+                Upgrade
+              </a>
+            </template>
+
             <!-- Action buttons -->
             <div class="flex items-center gap-1 shrink-0">
 

@@ -59,6 +59,19 @@ def _handle_inbound_message(event: WebhookEventLog) -> None:
 
     account = get_account_for_webhook(phone_number_id)
 
+    try:
+        from apps.billing.limits import LimitChecker, PlanLimitExceeded
+        LimitChecker(account).check_conversation()
+    except Exception as exc:
+        from apps.billing.limits import PlanLimitExceeded
+        if isinstance(exc, PlanLimitExceeded):
+            logger.warning(
+                "_handle_inbound_message: conversation limit exceeded for account %s: %s",
+                account.pk, exc,
+            )
+            return
+        logger.debug("_handle_inbound_message: limit check skipped: %s", exc)
+
     wa_id = message["from"]
     profile_name = (value.get("contacts") or [{}])[0].get("profile", {}).get("name")
 
@@ -74,6 +87,12 @@ def _handle_inbound_message(event: WebhookEventLog) -> None:
     msg_ts = timezone.datetime.fromtimestamp(int(message["timestamp"]), tz=timezone.utc)
     conversation = Conversation.get_or_open(contact)
     conversation.register_inbound(msg_ts)
+
+    try:
+        from apps.billing.models import UsageSummary
+        UsageSummary.increment_conversations(account)
+    except Exception as exc:
+        logger.debug("_handle_inbound_message: usage increment skipped: %s", exc)
 
     msg_type = message.get("type", "unknown")
     content = ""

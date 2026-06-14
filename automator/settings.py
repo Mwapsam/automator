@@ -17,6 +17,9 @@ if not SECRET_KEY and not DEBUG:
 
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
+_extra_origins = os.getenv("CSRF_TRUSTED_ORIGINS", "")
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in _extra_origins.split(",") if o.strip()]
+
 # --- Applications ---
 
 INSTALLED_APPS = [
@@ -29,6 +32,7 @@ INSTALLED_APPS = [
     "apps.whatsapp",
     "apps.bitrix",
     "apps.automation",
+    "apps.billing",
 ]
 
 MIDDLEWARE = [
@@ -146,6 +150,12 @@ if not DEBUG:
             "BITRIX_CLIENT_SECRET missing"
         )
 
+# --- Flutterwave ---
+
+FLUTTERWAVE_SECRET_KEY = os.getenv("FLUTTERWAVE_SECRET_KEY")
+FLUTTERWAVE_WEBHOOK_HASH = os.getenv("FLUTTERWAVE_WEBHOOK_HASH")
+FLUTTERWAVE_CURRENCY = os.getenv("FLUTTERWAVE_CURRENCY", "USD")
+
 # --- Celery ---
 
 CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "amqp://guest:guest@rabbitmq:5672//")
@@ -177,6 +187,10 @@ CELERY_BEAT_SCHEDULE = {
     "download-media": {
         "task": "apps.whatsapp.tasks.download_media",
         "schedule": 60.0,
+    },
+    "expire-trials": {
+        "task": "apps.billing.tasks.expire_trials",
+        "schedule": 3600.0,
     },
 }
 
