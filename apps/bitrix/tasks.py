@@ -3,7 +3,9 @@ import logging
 from celery import shared_task
 from django.utils import timezone
 
-from apps.whatsapp.models import BitrixAccount, WebhookEventLog
+from apps.whatsapp.models import WebhookEventLog
+from apps.bitrix.models import BitrixConnection
+from apps.bitrix.sdk import token_for_connection
 
 logger = logging.getLogger(__name__)
 
@@ -12,18 +14,28 @@ _MAX_EVENT_ATTEMPTS = 3
 
 @shared_task
 def refresh_tokens():
-    stale = BitrixAccount.objects.filter(
+    stale = BitrixConnection.objects.filter(
         is_active=True,
-        expires_at__lte=timezone.now() + BitrixAccount.REFRESH_MARGIN,
+        expires_at__lte=timezone.now() + BitrixConnection.REFRESH_MARGIN,
     )
     refreshed = failed = 0
-    for account in stale:
+    for connection in stale:
         try:
-            # TODO: bitrix_client.refresh_oauth_token(account)
+            token = token_for_connection(connection)
+            token.refresh_and_set_oauth_token()
+            oauth_token = token.oauth_token
+            connection.access_token = oauth_token.access_token
+            if oauth_token.refresh_token:
+                connection.refresh_token = oauth_token.refresh_token
+            if oauth_token.expires:
+                connection.expires_at = oauth_token.expires
+            connection.save(
+                update_fields=["access_token", "refresh_token", "expires_at"]
+            )
             refreshed += 1
         except Exception as exc:
             logger.error(
-                "refresh_tokens: failed for account pk=%s: %s", account.pk, exc
+                "refresh_tokens: failed for connection pk=%s: %s", connection.pk, exc
             )
             failed += 1
     if refreshed or failed:

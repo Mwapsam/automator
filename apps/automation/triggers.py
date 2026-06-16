@@ -14,7 +14,7 @@ def on_message_received(message: MessageLog) -> None:
         "message_type": message.message_type,
         "message_contains": message.content,
     }
-    _dispatch(message.bitrix_account_id, AutomationRule.TriggerEvent.MESSAGE_RECEIVED, context)
+    _dispatch(message.account_id, AutomationRule.TriggerEvent.MESSAGE_RECEIVED, context)
 
 
 def on_message_sent(message: MessageLog) -> None:
@@ -25,7 +25,7 @@ def on_message_sent(message: MessageLog) -> None:
         "phone_number": message.contact.phone_number,
         "message_type": message.message_type,
     }
-    _dispatch(message.bitrix_account_id, AutomationRule.TriggerEvent.MESSAGE_SENT, context)
+    _dispatch(message.account_id, AutomationRule.TriggerEvent.MESSAGE_SENT, context)
 
 
 def on_lead_created(account_id: int, lead_id: str, fields: dict) -> None:

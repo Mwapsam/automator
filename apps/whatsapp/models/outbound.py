@@ -3,7 +3,6 @@ from datetime import timedelta
 from django.db import models
 from django.utils import timezone
 
-from .account import BitrixAccount
 from .contact import WhatsAppContact
 from .message import MessageLog
 from .templates import MessageTemplate
@@ -19,7 +18,7 @@ class OutboundMessage(models.Model):
 
     MAX_ATTEMPTS = 5
 
-    bitrix_account = models.ForeignKey(BitrixAccount, on_delete=models.CASCADE)
+    account = models.ForeignKey("accounts.Account", on_delete=models.CASCADE)
     contact = models.ForeignKey(WhatsAppContact, on_delete=models.CASCADE)
 
     template = models.ForeignKey(
@@ -49,11 +48,11 @@ class OutboundMessage(models.Model):
     class Meta:
         indexes = [
             models.Index(fields=["status", "scheduled_at"]),            # drain worker
-            models.Index(fields=["bitrix_account", "status"]),          # rate limiter
+            models.Index(fields=["account", "status"]),                 # rate limiter
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=["bitrix_account", "idempotency_key"],
+                fields=["account", "idempotency_key"],
                 condition=models.Q(idempotency_key__isnull=False),
                 name="unique_outbound_idempotency",
             ),

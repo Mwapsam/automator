@@ -8,7 +8,7 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 
-@receiver(post_save, sender="whatsapp.BitrixAccount")
+@receiver(post_save, sender="accounts.Account")
 def auto_create_trial(sender, instance, created, **kwargs):
     if not created:
         return
@@ -18,7 +18,7 @@ def auto_create_trial(sender, instance, created, **kwargs):
         trial_plan = Plan.objects.get(slug=Plan.TRIAL)
         now = timezone.now()
         Subscription.objects.get_or_create(
-            bitrix_account=instance,
+            account=instance,
             defaults={
                 "plan": trial_plan,
                 "status": Subscription.TRIALING,

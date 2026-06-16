@@ -1,6 +1,6 @@
 from django.urls import path
 
-from .views import connect, callback
+from .views import connect, callback, install
 
 
 urlpatterns = [
@@ -13,5 +13,10 @@ urlpatterns = [
         "callback/",
         callback,
         name="bitrix-callback",
+    ),
+    path(
+        "install/",
+        install,
+        name="bitrix-install",
     ),
 ]

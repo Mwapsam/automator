@@ -76,7 +76,7 @@ def _handle_inbound_message(event: WebhookEventLog) -> None:
     profile_name = (value.get("contacts") or [{}])[0].get("profile", {}).get("name")
 
     contact, _ = WhatsAppContact.objects.get_or_create(
-        bitrix_account=account,
+        account=account,
         phone_number=wa_id,
         defaults={"display_name": profile_name},
     )
@@ -111,7 +111,7 @@ def _handle_inbound_message(event: WebhookEventLog) -> None:
 
     valid_types = {c[0] for c in MessageLog.MessageType.choices}
     MessageLog.objects.get_or_create(
-        bitrix_account=account,
+        account=account,
         message_id=message.get("id"),
         defaults={
             "conversation": conversation,
@@ -152,6 +152,44 @@ def _handle_status_update(event: WebhookEventLog) -> None:
         )
 
 
+def _client_for_account(account):
+    """Build a WhatsAppClient from the account's first active number + token.
+
+    Returns None if the account has no usable (active, tokened) number.
+    """
+    from apps.whatsapp.models.tenant import WhatsAppBusinessNumber
+    from apps.whatsapp.services import WhatsAppClient
+
+    number = (
+        WhatsAppBusinessNumber.objects.filter(account=account, is_active=True)
+        .exclude(access_token__isnull=True)
+        .exclude(access_token="")
+        .order_by("phone_number_id")
+        .first()
+    )
+    if number is None:
+        return None
+    return WhatsAppClient(number.access_token, number.phone_number_id)
+
+
+def _send_outbound(client, contact, payload: dict) -> dict:
+    """Dispatch an OutboundMessage payload via the Cloud API client."""
+    msg_type = payload.get("type", "text")
+    to = contact.phone_number
+    if msg_type == "template":
+        return client.send_template(
+            to,
+            payload["template_name"],
+            payload.get("language", "en"),
+            payload.get("components", payload.get("params", [])) or [],
+        )
+    if msg_type in ("image", "audio", "video", "document", "sticker"):
+        return client.send_media(
+            to, msg_type, payload["media_id"], payload.get("caption", "")
+        )
+    return client.send_text(to, payload.get("body", payload.get("text", "")))
+
+
 @shared_task
 def drain_outbound_queue():
     now = timezone.now()
@@ -161,13 +199,23 @@ def drain_outbound_queue():
             scheduled_at__lte=now,
         )
         .filter(Q(next_attempt_at__isnull=True) | Q(next_attempt_at__lte=now))
-        .select_related("bitrix_account", "contact")[:_OUTBOUND_BATCH]
+        .select_related("account", "contact")[:_OUTBOUND_BATCH]
     )
 
     sent = failed = 0
+    clients: dict = {}
     for msg in due:
         try:
-            # TODO: whatsapp_client.send(msg.bitrix_account, msg.contact, msg.payload)
+            client = clients.get(msg.account_id)
+            if client is None:
+                client = _client_for_account(msg.account)
+                clients[msg.account_id] = client
+            if client is None:
+                raise RuntimeError(
+                    "No active WhatsApp number with an access token for this account."
+                )
+
+            _send_outbound(client, msg.contact, msg.payload)
             msg.status = OutboundMessage.Status.SENT
             msg.sent_at = timezone.now()
             msg.save(update_fields=["status", "sent_at"])
@@ -203,12 +251,12 @@ def download_media():
             media_id__isnull=False,
             media_url__isnull=True,
         )
-        .select_related("bitrix_account")[:_MEDIA_BATCH]
+        .select_related("account")[:_MEDIA_BATCH]
     )
     count = 0
     for log in pending:
         try:
-            # TODO: url = whatsapp_client.get_media_url(log.bitrix_account, log.media_id)
+            # TODO: url = whatsapp_client.get_media_url(log.account, log.media_id)
             # log.media_url = url
             # log.save(update_fields=["media_url"])
             count += 1

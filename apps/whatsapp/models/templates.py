@@ -1,7 +1,5 @@
 from django.db import models
 
-from .account import BitrixAccount
-
 
 class MessageTemplate(models.Model):
 
@@ -17,7 +15,7 @@ class MessageTemplate(models.Model):
         UTILITY = "utility", "Utility"
         AUTHENTICATION = "authentication", "Authentication"
 
-    bitrix_account = models.ForeignKey(BitrixAccount, on_delete=models.CASCADE)
+    account = models.ForeignKey("accounts.Account", on_delete=models.CASCADE)
     name = models.CharField(max_length=255)
     whatsapp_template_name = models.CharField(max_length=255, blank=True, null=True)
     language_code = models.CharField(max_length=10, default="en")
@@ -35,7 +33,7 @@ class MessageTemplate(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ("bitrix_account", "whatsapp_template_name", "language_code")
+        unique_together = ("account", "whatsapp_template_name", "language_code")
 
     @property
     def sendable_outside_window(self) -> bool:

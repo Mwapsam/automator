@@ -1,4 +1,4 @@
-from .account import BitrixAccount, EncryptedTextField, _fernet
+from .account import EncryptedTextField, _fernet
 from .automation import AutomationRule
 from .contact import CrmBinding, WhatsAppContact, normalize_phone
 from .conversation import Conversation
@@ -11,7 +11,6 @@ from .webhook import WebhookEventLog
 __all__ = [
     "_fernet",
     "AutomationRule",
-    "BitrixAccount",
     "CrmBinding",
     "Conversation",
     "EncryptedTextField",

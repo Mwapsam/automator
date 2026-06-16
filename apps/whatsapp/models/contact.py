@@ -2,8 +2,6 @@ import phonenumbers
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
 
-from .account import BitrixAccount
-
 
 def normalize_phone(raw: str, default_region: str = "ZM") -> str:
     if not raw:
@@ -22,8 +20,8 @@ def normalize_phone(raw: str, default_region: str = "ZM") -> str:
 
 
 class WhatsAppContact(models.Model):
-    bitrix_account = models.ForeignKey(
-        BitrixAccount, on_delete=models.CASCADE, related_name="contacts"
+    account = models.ForeignKey(
+        "accounts.Account", on_delete=models.CASCADE, related_name="contacts"
     )
 
     phone_number = models.CharField(max_length=20, db_index=True)
@@ -32,7 +30,7 @@ class WhatsAppContact(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ("bitrix_account", "phone_number")
+        unique_together = ("account", "phone_number")
 
     def save(self, *args, **kwargs):
         self.phone_number = normalize_phone(self.phone_number)
@@ -46,7 +44,7 @@ class WhatsAppContact(models.Model):
         return self.crm_bindings.filter(entity_type=entity_type).first()
 
     def __str__(self):
-        return f"{self.phone_number} ({self.bitrix_account.company_name})"
+        return f"{self.phone_number} ({self.account.company_name})"
 
 
 class CrmBinding(models.Model):
@@ -55,7 +53,7 @@ class CrmBinding(models.Model):
         CONTACT = "contact", "Contact"
         DEAL = "deal", "Deal"
 
-    bitrix_account = models.ForeignKey(BitrixAccount, on_delete=models.CASCADE)
+    account = models.ForeignKey("accounts.Account", on_delete=models.CASCADE)
     contact = models.ForeignKey(
         WhatsAppContact, on_delete=models.CASCADE, related_name="crm_bindings"
     )
@@ -71,7 +69,7 @@ class CrmBinding(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=["bitrix_account", "entity_type", "entity_id", "contact"],
+                fields=["account", "entity_type", "entity_id", "contact"],
                 name="unique_binding_per_entity",
             ),
             models.UniqueConstraint(
@@ -81,7 +79,7 @@ class CrmBinding(models.Model):
             ),
         ]
         indexes = [
-            models.Index(fields=["bitrix_account", "entity_type", "entity_id"]),
+            models.Index(fields=["account", "entity_type", "entity_id"]),
         ]
 
     @transaction.atomic

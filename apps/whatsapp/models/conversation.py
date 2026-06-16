@@ -3,15 +3,14 @@ from datetime import timedelta
 from django.db import IntegrityError, models, transaction
 from django.utils import timezone
 
-from .account import BitrixAccount
 from .contact import CrmBinding, WhatsAppContact
 
 
 class Conversation(models.Model):
-    SESSION_GAP = timedelta(hours=24)         
-    SESSION_CLOSE_GRACE = timedelta(hours=24)  
+    SESSION_GAP = timedelta(hours=24)
+    SESSION_CLOSE_GRACE = timedelta(hours=24)
 
-    bitrix_account = models.ForeignKey(BitrixAccount, on_delete=models.CASCADE)
+    account = models.ForeignKey("accounts.Account", on_delete=models.CASCADE)
     contact = models.ForeignKey(
         WhatsAppContact, on_delete=models.CASCADE, related_name="conversations"
     )
@@ -35,7 +34,7 @@ class Conversation(models.Model):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=["bitrix_account", "contact"],
+                fields=["account", "contact"],
                 condition=models.Q(is_open=True),
                 name="one_open_conversation_per_contact",
             ),
@@ -71,7 +70,7 @@ class Conversation(models.Model):
             try:
                 with transaction.atomic(): 
                     return cls.objects.create(
-                        bitrix_account=contact.bitrix_account,
+                        account=contact.account,
                         contact=contact,
                         crm_binding=contact.primary_binding,
                     )

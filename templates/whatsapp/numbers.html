@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}WhatsApp numbers — Automator{% endblock %}
+{% block content %}
+
+<h1 class="text-2xl font-semibold mb-6">WhatsApp numbers</h1>
+
+<div class="bg-white border border-gray-200 rounded-2xl p-6 mb-6">
+  <h2 class="font-semibold mb-4">Register a number</h2>
+  <form method="post" action="/whatsapp/numbers/create/" class="grid sm:grid-cols-2 gap-4">
+    {% csrf_token %}
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1.5">Phone number ID *</label>
+      <input name="phone_number_id" required
+             class="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1.5">Display number</label>
+      <input name="display_number"
+             class="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1.5">WABA ID</label>
+      <input name="waba_id"
+             class="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1.5">Business ID</label>
+      <input name="business_id"
+             class="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+    </div>
+    <div class="sm:col-span-2">
+      <label class="block text-xs font-medium text-gray-600 mb-1.5">Access token (system user / WABA)</label>
+      <input name="access_token" type="password"
+             class="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      <p class="text-xs text-gray-400 mt-1">Stored encrypted. Used to call the Cloud API for this number.</p>
+    </div>
+    <div class="sm:col-span-2">
+      <button class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2.5 rounded-xl">Register</button>
+    </div>
+  </form>
+</div>
+
+<div class="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 text-gray-500 text-left">
+      <tr>
+        <th class="px-4 py-3 font-medium">Phone number ID</th>
+        <th class="px-4 py-3 font-medium">Display</th>
+        <th class="px-4 py-3 font-medium">WABA</th>
+        <th class="px-4 py-3 font-medium">Token</th>
+        <th class="px-4 py-3 font-medium">Active</th>
+        <th class="px-4 py-3"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100">
+      {% for n in numbers %}
+        <tr>
+          <td class="px-4 py-3 font-mono text-xs">{{ n.phone_number_id }}</td>
+          <td class="px-4 py-3">{{ n.display_number|default:"—" }}</td>
+          <td class="px-4 py-3">{{ n.waba_id|default:"—" }}</td>
+          <td class="px-4 py-3">{% if n.access_token %}✓{% else %}<span class="text-red-500">missing</span>{% endif %}</td>
+          <td class="px-4 py-3">{% if n.is_active %}✓{% else %}—{% endif %}</td>
+          <td class="px-4 py-3 text-right">
+            <form method="post" action="/whatsapp/numbers/{{ n.pk }}/delete/" onsubmit="return confirm('Remove this number?')">
+              {% csrf_token %}
+              <button class="text-red-600 hover:text-red-800 text-xs">Remove</button>
+            </form>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6" class="px-4 py-6 text-center text-gray-400">No numbers yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

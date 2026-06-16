@@ -1,6 +1,5 @@
 from django.db import models
 
-from .account import BitrixAccount
 from .contact import WhatsAppContact
 from .conversation import Conversation
 
@@ -38,7 +37,7 @@ class MessageLog(models.Model):
         Status.FAILED: 99,
     }
 
-    bitrix_account = models.ForeignKey(BitrixAccount, on_delete=models.CASCADE)
+    account = models.ForeignKey("accounts.Account", on_delete=models.CASCADE)
     conversation = models.ForeignKey(
         Conversation, on_delete=models.CASCADE, related_name="messages"
     )
@@ -73,7 +72,7 @@ class MessageLog(models.Model):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=["bitrix_account", "message_id"],
+                fields=["account", "message_id"],
                 condition=models.Q(message_id__isnull=False),
                 name="unique_message_per_account",
             ),

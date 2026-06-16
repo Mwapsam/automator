@@ -23,6 +23,7 @@ class Plan(models.Model):
     price_monthly = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0.00"))
 
     max_conversations_per_month = models.IntegerField(default=100)
+    max_emails_per_month = models.IntegerField(default=1000)
     max_automation_rules = models.IntegerField(default=2)
     max_whatsapp_numbers = models.IntegerField(default=1)
 
@@ -56,8 +57,8 @@ class Subscription(models.Model):
         (EXPIRED, "Expired"),
     ]
 
-    bitrix_account = models.OneToOneField(
-        "whatsapp.BitrixAccount",
+    account = models.OneToOneField(
+        "accounts.Account",
         on_delete=models.CASCADE,
         related_name="subscription",
     )
@@ -80,7 +81,7 @@ class Subscription(models.Model):
         ordering = ["-created_at"]
 
     def __str__(self):
-        return f"{self.bitrix_account} — {self.plan.name} ({self.status})"
+        return f"{self.account} — {self.plan.name} ({self.status})"
 
     @property
     def is_active(self):
@@ -92,37 +93,50 @@ class Subscription(models.Model):
 
 
 class UsageSummary(models.Model):
-    bitrix_account = models.ForeignKey(
-        "whatsapp.BitrixAccount",
+    account = models.ForeignKey(
+        "accounts.Account",
         on_delete=models.CASCADE,
         related_name="usage_summaries",
     )
     period_start = models.DateField()
     conversations_used = models.PositiveIntegerField(default=0)
+    emails_used = models.PositiveIntegerField(default=0)
 
     class Meta:
-        unique_together = ("bitrix_account", "period_start")
+        unique_together = ("account", "period_start")
 
     def __str__(self):
-        return f"{self.bitrix_account} {self.period_start}: {self.conversations_used} conv"
+        return f"{self.account} {self.period_start}: {self.conversations_used} conv / {self.emails_used} email"
+
+    @classmethod
+    def _increment(cls, account, field: str):
+        period_start = timezone.now().date().replace(day=1)
+        cls.objects.get_or_create(account=account, period_start=period_start)
+        cls.objects.filter(
+            account=account,
+            period_start=period_start,
+        ).update(**{field: F(field) + 1})
 
     @classmethod
     def increment_conversations(cls, account):
-        period_start = timezone.now().date().replace(day=1)
-        cls.objects.update_or_create(
-            bitrix_account=account,
-            period_start=period_start,
-            defaults={"conversations_used": 0},
-        )
-        cls.objects.filter(
-            bitrix_account=account,
-            period_start=period_start,
-        ).update(conversations_used=F("conversations_used") + 1)
+        cls._increment(account, "conversations_used")
+
+    @classmethod
+    def increment_emails(cls, account):
+        cls._increment(account, "emails_used")
 
     @classmethod
     def get_current_usage(cls, account):
         period_start = timezone.now().date().replace(day=1)
         try:
-            return cls.objects.get(bitrix_account=account, period_start=period_start).conversations_used
+            return cls.objects.get(account=account, period_start=period_start).conversations_used
+        except cls.DoesNotExist:
+            return 0
+
+    @classmethod
+    def get_current_email_usage(cls, account):
+        period_start = timezone.now().date().replace(day=1)
+        try:
+            return cls.objects.get(account=account, period_start=period_start).emails_used
         except cls.DoesNotExist:
             return 0

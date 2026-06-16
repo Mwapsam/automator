@@ -21,10 +21,10 @@ logger = logging.getLogger(__name__)
 @staff_member_required(login_url="/auth/login/")
 def pricing_page(request):
     import json
-    from apps.whatsapp.models import BitrixAccount
+    from apps.accounts.models import Account
 
     plans = list(Plan.objects.filter(is_active=True).order_by("price_monthly"))
-    accounts = list(BitrixAccount.objects.select_related("subscription__plan").order_by("company_name"))
+    accounts = list(Account.objects.select_related("subscription__plan").order_by("company_name"))
 
     preselected_id = request.GET.get("account")
     try:
@@ -33,7 +33,7 @@ def pricing_page(request):
         preselected_id = None
 
     accounts_json = json.dumps([
-        {"id": a.pk, "label": a.company_name or a.domain}
+        {"id": a.pk, "label": a.company_name or a.slug}
         for a in accounts
     ])
 
@@ -55,8 +55,8 @@ def checkout(request):
         messages.error(request, "Trial plan cannot be purchased.")
         return redirect("/billing/plans/")
 
-    from apps.whatsapp.models import BitrixAccount
-    account = get_object_or_404(BitrixAccount, pk=account_id)
+    from apps.accounts.models import Account
+    account = get_object_or_404(Account, pk=account_id)
 
     tx_ref = f"sub_{account.pk}_{plan.slug}_{uuid.uuid4().hex[:8]}"
     currency = getattr(settings, "FLUTTERWAVE_CURRENCY", "USD")
@@ -115,17 +115,17 @@ def callback(request):
         return redirect("/billing/plans/")
 
     try:
-        from apps.whatsapp.models import BitrixAccount
-        account = BitrixAccount.objects.get(pk=account_id)
+        from apps.accounts.models import Account
+        account = Account.objects.get(pk=account_id)
         plan = Plan.objects.get(slug=plan_slug)
     except Exception as exc:
         logger.error("callback: account/plan lookup failed: %s", exc)
         messages.error(request, "Subscription activation failed. Contact support.")
-        return redirect("/tenants/")
+        return redirect("/dashboard/")
 
     now = timezone.now()
     Subscription.objects.update_or_create(
-        bitrix_account=account,
+        account=account,
         defaults={
             "plan": plan,
             "status": Subscription.ACTIVE,
@@ -142,7 +142,7 @@ def callback(request):
         plan.name, account.pk, transaction_id,
     )
     messages.success(request, f"Successfully subscribed to {plan.name}!")
-    return redirect("/tenants/")
+    return redirect("/dashboard/")
 
 
 @csrf_exempt
@@ -187,7 +187,7 @@ def _handle_charge_completed(payload: dict):
 
     try:
         sub = Subscription.objects.select_related("plan").get(
-            bitrix_account_id=account_id
+            account_id=account_id
         )
     except Subscription.DoesNotExist:
         logger.warning("_handle_charge_completed: no subscription for account=%s", account_id)
@@ -212,7 +212,7 @@ def _handle_subscription_cancelled(payload: dict):
         return
 
     now = timezone.now()
-    updated = Subscription.objects.filter(bitrix_account_id=account_id).update(
+    updated = Subscription.objects.filter(account_id=account_id).update(
         status=Subscription.CANCELLED,
         cancelled_at=now,
     )

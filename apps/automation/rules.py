@@ -9,7 +9,7 @@ def get_matching_rules(account_id: int, event: str) -> list[AutomationRule]:
     """Return active rules for the given account and trigger event."""
     return list(
         AutomationRule.objects.filter(
-            bitrix_account_id=account_id,
+            account_id=account_id,
             trigger_event=event,
             is_active=True,
         )

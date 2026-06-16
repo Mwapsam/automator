@@ -29,7 +29,9 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "apps.accounts",
     "apps.whatsapp",
+    "apps.email",
     "apps.bitrix",
     "apps.automation",
     "apps.billing",
@@ -67,24 +69,33 @@ TEMPLATES = [
 
 # --- Database ---
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("POSTGRES_DB", "automator"),
-        "USER": os.getenv("POSTGRES_USER", "automator"),
-        "PASSWORD": os.getenv("POSTGRES_PASSWORD"),
-        "HOST": os.getenv("POSTGRES_HOST", "db"),
-        "PORT": os.getenv("POSTGRES_PORT", "5432"),
+if os.getenv("USE_SQLITE", "0") == "1":
+    # Local dev convenience: run without Postgres/docker.
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.getenv("POSTGRES_DB", "automator"),
+            "USER": os.getenv("POSTGRES_USER", "automator"),
+            "PASSWORD": os.getenv("POSTGRES_PASSWORD"),
+            "HOST": os.getenv("POSTGRES_HOST", "db"),
+            "PORT": os.getenv("POSTGRES_PORT", "5432"),
+        }
+    }
 
-if not DEBUG and not DATABASES["default"]["PASSWORD"]:
-    raise ValueError("POSTGRES_PASSWORD is required")
+    if not DEBUG and not DATABASES["default"]["PASSWORD"]:
+        raise ValueError("POSTGRES_PASSWORD is required")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 LOGIN_URL = "/auth/login/"
-LOGIN_REDIRECT_URL = "/tenants/"
+LOGIN_REDIRECT_URL = "/dashboard/"
 LOGOUT_REDIRECT_URL = "/auth/login/"
 
 # --- Auth ---
@@ -107,6 +118,9 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+
+BASE_DOMAIN = os.getenv("BASE_DOMAIN", "localhost:8000")
+
 
 # --- Encryption ---
 
@@ -133,10 +147,15 @@ if not DEBUG:
 BITRIX_CLIENT_ID = os.getenv("BITRIX_CLIENT_ID")
 BITRIX_CLIENT_SECRET = os.getenv("BITRIX_CLIENT_SECRET")
 
+# The portal you authorize against, e.g. "mycompany.bitrix24.com" (no scheme).
+# OAuth authorization happens on the portal itself; only the token exchange
+# uses oauth.bitrix.info.
+BITRIX_PORTAL_DOMAIN = os.getenv("BITRIX_PORTAL_DOMAIN", "")
+
 BITRIX24_WEBHOOK_TIMEOUT = 10
 BITRIX24_OAUTH_REDIRECT_URL = os.getenv(
     "BITRIX24_OAUTH_REDIRECT_URL",
-    "http://localhost:8000/auth/bitrix/callback/",
+    f"https://{BASE_DOMAIN}/auth/bitrix/callback/",
 )
 
 if not DEBUG:
@@ -149,6 +168,21 @@ if not DEBUG:
         raise ValueError(
             "BITRIX_CLIENT_SECRET missing"
         )
+
+# --- Email (Mailcow) ---
+
+# Mailcow admin API, used to provision per-tenant sending domains + DKIM.
+MAILCOW_API_BASE = os.getenv("MAILCOW_API_BASE", "")
+MAILCOW_API_KEY = os.getenv("MAILCOW_API_KEY", "")
+
+# SMTP relay credentials (the Mailcow host) used to actually send mail.
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = os.getenv("EMAIL_HOST", "")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True").lower() == "true"
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "no-reply@localhost")
 
 # --- Flutterwave ---
 
@@ -169,6 +203,7 @@ CELERY_TASK_ROUTES = {
     "apps.whatsapp.tasks.process_whatsapp_event": {"queue": "whatsapp"},
     "apps.bitrix.tasks.process_bitrix_webhook": {"queue": "bitrix"},
     "apps.whatsapp.tasks.drain_outbound_queue": {"queue": "outbound"},
+    "apps.email.tasks.send_email": {"queue": "email"},
 }
 
 CELERY_BEAT_SCHEDULE = {

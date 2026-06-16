@@ -43,7 +43,7 @@ class LimitChecker:
         if plan.max_whatsapp_numbers == -1:
             return
         from apps.whatsapp.models.tenant import WhatsAppBusinessNumber
-        count = WhatsAppBusinessNumber.objects.filter(bitrix_account=self.account).count()
+        count = WhatsAppBusinessNumber.objects.filter(account=self.account).count()
         if count >= plan.max_whatsapp_numbers:
             raise PlanLimitExceeded(
                 f"WhatsApp number limit of {plan.max_whatsapp_numbers} reached. "
@@ -55,16 +55,26 @@ class LimitChecker:
         plan = self._require_active_plan()
         if plan.max_automation_rules == -1:
             return
-        try:
-            from apps.automation.models import AutomationRule
-            count = AutomationRule.objects.filter(
-                bitrix_account=self.account, is_active=True
-            ).count()
-            if count >= plan.max_automation_rules:
-                raise PlanLimitExceeded(
-                    f"Automation rule limit of {plan.max_automation_rules} reached. "
-                    "Upgrade your plan to add more rules.",
-                    "automation_rules",
-                )
-        except ImportError:
-            pass
+        from apps.whatsapp.models import AutomationRule
+        count = AutomationRule.objects.filter(
+            account=self.account, is_active=True
+        ).count()
+        if count >= plan.max_automation_rules:
+            raise PlanLimitExceeded(
+                f"Automation rule limit of {plan.max_automation_rules} reached. "
+                "Upgrade your plan to add more rules.",
+                "automation_rules",
+            )
+
+    def check_email(self):
+        plan = self._require_active_plan()
+        if plan.max_emails_per_month == -1:
+            return
+        from apps.billing.models import UsageSummary
+        used = UsageSummary.get_current_email_usage(self.account)
+        if used >= plan.max_emails_per_month:
+            raise PlanLimitExceeded(
+                f"Monthly email limit of {plan.max_emails_per_month} reached. "
+                "Please upgrade your plan.",
+                "emails",
+            )

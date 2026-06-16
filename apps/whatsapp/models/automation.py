@@ -1,7 +1,5 @@
 from django.db import models
 
-from .account import BitrixAccount
-
 
 class AutomationRule(models.Model):
     class TriggerEvent(models.TextChoices):
@@ -10,7 +8,7 @@ class AutomationRule(models.Model):
         LEAD_CREATED = "lead_created", "Lead created"
         DEAL_STAGE_CHANGED = "deal_stage_changed", "Deal stage changed"
 
-    bitrix_account = models.ForeignKey(BitrixAccount, on_delete=models.CASCADE)
+    account = models.ForeignKey("accounts.Account", on_delete=models.CASCADE)
 
     name = models.CharField(max_length=255)
     trigger_event = models.CharField(max_length=50, choices=TriggerEvent.choices)
@@ -23,7 +21,7 @@ class AutomationRule(models.Model):
 
     class Meta:
         indexes = [
-            models.Index(fields=["bitrix_account", "trigger_event", "is_active"]),
+            models.Index(fields=["account", "trigger_event", "is_active"]),
         ]
 
     def __str__(self):

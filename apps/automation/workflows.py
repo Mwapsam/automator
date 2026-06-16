@@ -36,15 +36,15 @@ def _send_whatsapp_message(rule: AutomationRule, action: dict, context: dict) ->
 
     try:
         contact = WhatsAppContact.objects.get(
-            bitrix_account=rule.bitrix_account, phone_number=phone
+            account=rule.account, phone_number=phone
         )
-        template = MessageTemplate.objects.get(pk=template_id, bitrix_account=rule.bitrix_account)
+        template = MessageTemplate.objects.get(pk=template_id, account=rule.account)
     except (WhatsAppContact.DoesNotExist, MessageTemplate.DoesNotExist) as exc:
         logger.error("_send_whatsapp_message: %s", exc)
         return
 
     OutboundMessage.objects.create(
-        bitrix_account=rule.bitrix_account,
+        account=rule.account,
         contact=contact,
         template=template,
         payload={
@@ -71,8 +71,15 @@ def _update_crm_field(rule: AutomationRule, action: dict, context: dict) -> None
         logger.warning("_update_crm_field: no entity_id in context for rule pk=%s", rule.pk)
         return
 
-    account = rule.bitrix_account
-    client = BitrixClient(account.domain, account.access_token)
+    connection = getattr(rule.account, "bitrix_connection", None)
+    if connection is None:
+        logger.warning(
+            "_update_crm_field: account %s has no Bitrix connection (rule pk=%s)",
+            rule.account_id, rule.pk,
+        )
+        return
+
+    client = BitrixClient.from_connection(connection)
     method = f"crm.{entity_type}.update"
     client.call(method, {"id": entity_id, "fields": fields})
 

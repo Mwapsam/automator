@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Automator{% endblock %}
+{% block content %}
+
+{% if account is None %}
+  <div class="bg-white border border-gray-200 rounded-2xl p-8 text-center">
+    <h1 class="text-lg font-semibold">No workspace yet</h1>
+    <p class="text-sm text-gray-500 mt-2">This user isn't attached to any account.</p>
+  </div>
+{% else %}
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-semibold">{{ account.company_name }}</h1>
+      {% if subscription %}
+        <p class="text-sm text-gray-500 mt-1">
+          Plan: <span class="font-medium">{{ subscription.plan.name }}</span>
+          · <span class="capitalize">{{ subscription.status }}</span>
+        </p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="grid sm:grid-cols-2 gap-4">
+
+    <!-- WhatsApp -->
+    <div class="bg-white border border-gray-200 rounded-2xl p-6">
+      <div class="flex items-center justify-between">
+        <h2 class="font-semibold">WhatsApp numbers</h2>
+        <a href="/whatsapp/numbers/" class="text-sm text-blue-600">Manage</a>
+      </div>
+      <p class="text-3xl font-semibold mt-3">{{ numbers|length }}</p>
+      <ul class="mt-3 space-y-1">
+        {% for n in numbers %}
+          <li class="text-sm text-gray-600">{{ n.phone_number_id }}{% if n.display_number %} · {{ n.display_number }}{% endif %}</li>
+        {% empty %}
+          <li class="text-sm text-gray-400">No numbers registered yet.</li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <!-- Email -->
+    <div class="bg-white border border-gray-200 rounded-2xl p-6">
+      <div class="flex items-center justify-between">
+        <h2 class="font-semibold">Email domains</h2>
+        <a href="/email/domains/" class="text-sm text-blue-600">Manage</a>
+      </div>
+      <p class="text-3xl font-semibold mt-3">{{ email_domains|length }}</p>
+      <ul class="mt-3 space-y-1">
+        {% for d in email_domains %}
+          <li class="text-sm text-gray-600">{{ d.domain }} · <span class="capitalize">{{ d.status }}</span></li>
+        {% empty %}
+          <li class="text-sm text-gray-400">No sending domains yet.</li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <!-- Bitrix addon -->
+    <div class="bg-white border border-gray-200 rounded-2xl p-6">
+      <h2 class="font-semibold">Bitrix24 <span class="text-xs text-gray-400">(addon)</span></h2>
+      {% if bitrix_connection %}
+        <p class="text-sm text-gray-600 mt-3">Connected: {{ bitrix_connection.domain }}</p>
+      {% else %}
+        <p class="text-sm text-gray-400 mt-3">Not connected.</p>
+        <a href="/auth/bitrix/connect/" class="inline-block mt-3 text-sm text-blue-600">Connect Bitrix24</a>
+      {% endif %}
+    </div>
+
+  </div>
+{% endif %}
+
+{% endblock %}
