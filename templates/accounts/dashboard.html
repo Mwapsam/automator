@@ -8,6 +8,18 @@
     <p class="text-sm text-gray-500 mt-2">This user isn't attached to any account.</p>
   </div>
 {% else %}
+  {% if not onboarding_complete %}
+    <a href="/onboarding/" class="block mb-6 bg-blue-50 border border-blue-200 rounded-2xl px-5 py-4 hover:bg-blue-100/60 transition">
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <p class="text-sm font-medium text-blue-800">Finish setting up your workspace</p>
+          <p class="text-xs text-blue-600 mt-0.5">{{ onboarding_done }} of {{ onboarding_total }} steps complete — connect WhatsApp &amp; email to start sending.</p>
+        </div>
+        <span class="text-sm font-medium text-blue-700 shrink-0">Continue →</span>
+      </div>
+    </a>
+  {% endif %}
+
   <div class="flex items-center justify-between mb-6">
     <div>
       <h1 class="text-2xl font-semibold">{{ account.company_name }}</h1>

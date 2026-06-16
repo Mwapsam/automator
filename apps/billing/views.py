@@ -4,7 +4,7 @@ import uuid
 from datetime import timedelta
 
 from django.contrib import messages
-from django.contrib.admin.views.decorators import staff_member_required
+from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -12,51 +12,44 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.conf import settings
 
+from apps.accounts.utils import get_current_account
 from .models import Plan, Subscription, UsageSummary
 from .flutterwave import FlutterwaveError, get_fw_client
 
 logger = logging.getLogger(__name__)
 
 
-@staff_member_required(login_url="/auth/login/")
+@login_required
 def pricing_page(request):
-    import json
-    from apps.accounts.models import Account
+    account = get_current_account(request)
+    if account is None:
+        return redirect("/dashboard/")
 
     plans = list(Plan.objects.filter(is_active=True).order_by("price_monthly"))
-    accounts = list(Account.objects.select_related("subscription__plan").order_by("company_name"))
-
-    preselected_id = request.GET.get("account")
-    try:
-        preselected_id = int(preselected_id) if preselected_id else None
-    except (ValueError, TypeError):
-        preselected_id = None
-
-    accounts_json = json.dumps([
-        {"id": a.pk, "label": a.company_name or a.slug}
-        for a in accounts
-    ])
+    subscription = getattr(account, "subscription", None)
+    current_plan_slug = subscription.plan.slug if subscription else None
 
     return render(request, "billing/plans.html", {
         "plans": plans,
-        "accounts": accounts,
-        "accounts_json": accounts_json,
-        "preselected_id": preselected_id or (accounts[0].pk if len(accounts) == 1 else None),
+        "account": account,
+        "subscription": subscription,
+        "current_plan_slug": current_plan_slug,
+        "conversations_used": UsageSummary.get_current_usage(account),
+        "emails_used": UsageSummary.get_current_email_usage(account),
     })
 
 
-@staff_member_required(login_url="/auth/login/")
+@login_required
 def checkout(request):
-    plan_slug = request.GET.get("plan")
-    account_id = request.GET.get("account")
+    account = get_current_account(request)
+    if account is None:
+        return redirect("/dashboard/")
 
+    plan_slug = request.GET.get("plan")
     plan = get_object_or_404(Plan, slug=plan_slug, is_active=True)
     if plan.slug == Plan.TRIAL:
         messages.error(request, "Trial plan cannot be purchased.")
         return redirect("/billing/plans/")
-
-    from apps.accounts.models import Account
-    account = get_object_or_404(Account, pk=account_id)
 
     tx_ref = f"sub_{account.pk}_{plan.slug}_{uuid.uuid4().hex[:8]}"
     currency = getattr(settings, "FLUTTERWAVE_CURRENCY", "USD")

@@ -1,205 +1,133 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Subscription Plans</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
-  <style>[x-cloak]{display:none!important}</style>
-</head>
-<body class="bg-gray-50 min-h-screen antialiased">
+{% extends "base.html" %}
+{% block title %}Plans — Automator{% endblock %}
+{% block content %}
 
-  <!-- Header -->
-  <header class="bg-white border-b border-gray-200 sticky top-0 z-10">
-    <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+<div class="mb-8">
+  <h1 class="text-2xl font-semibold text-gray-900">Plans &amp; billing</h1>
+  <p class="text-sm text-gray-400 mt-1">All paid plans billed monthly · cancel anytime</p>
+</div>
+
+<!-- Current plan + usage -->
+{% if subscription %}
+  <div class="bg-white border border-gray-200 rounded-2xl p-6 mb-8">
+    <div class="flex flex-wrap items-center justify-between gap-4">
       <div>
-        <h1 class="text-lg font-semibold text-gray-900">Subscription Plans</h1>
-        <p class="text-xs text-gray-400 mt-0.5">All paid plans billed monthly · cancel anytime</p>
+        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Current plan</p>
+        <p class="text-lg font-semibold text-gray-900 mt-1">
+          {{ subscription.plan.name }}
+          <span class="text-sm font-normal capitalize
+            {% if subscription.status == 'active' %}text-green-600
+            {% elif subscription.status == 'trialing' %}text-amber-600
+            {% elif subscription.status == 'expired' or subscription.status == 'past_due' %}text-red-600
+            {% else %}text-gray-500{% endif %}">· {{ subscription.get_status_display }}</span>
+        </p>
+        {% if subscription.is_trialing and subscription.trial_ends_at %}
+          <p class="text-xs text-gray-400 mt-1">Trial ends {{ subscription.trial_ends_at|date:"M j, Y" }}</p>
+        {% elif subscription.current_period_end %}
+          <p class="text-xs text-gray-400 mt-1">Renews {{ subscription.current_period_end|date:"M j, Y" }}</p>
+        {% endif %}
       </div>
-      <a href="/tenants/" class="text-sm text-gray-500 hover:text-gray-700">← Back to Tenants</a>
-    </div>
-  </header>
-
-  <!-- Django messages (checkout errors etc.) -->
-  {% if messages %}
-    <div class="max-w-5xl mx-auto px-6 pt-6 space-y-2">
-      {% for message in messages %}
-        <div class="flex items-center gap-2 px-4 py-3 rounded-xl text-sm border
-                    {% if 'error' in message.tags %}bg-red-50 text-red-700 border-red-200
-                    {% else %}bg-green-50 text-green-700 border-green-200{% endif %}">
-          {{ message }}
+      <div class="flex gap-8 text-sm">
+        <div>
+          <p class="text-gray-400 text-xs">Conversations this month</p>
+          <p class="font-semibold text-gray-900 mt-0.5">
+            {{ conversations_used }}{% if subscription.plan.max_conversations_per_month != -1 %} / {{ subscription.plan.max_conversations_per_month }}{% endif %}
+          </p>
         </div>
-      {% endfor %}
-    </div>
-  {% endif %}
-
-  <main class="max-w-5xl mx-auto px-6 py-10"
-        x-data="plans"
-        x-cloak>
-
-    <!-- Account selector (shown when more than one portal) -->
-    <template x-if="accounts.length === 0">
-      <div class="mb-8 bg-amber-50 border border-amber-200 text-amber-800 text-sm px-4 py-3 rounded-xl">
-        No Bitrix24 portals connected yet.
-        <a href="/auth/bitrix/connect/" class="underline font-medium">Connect one first →</a>
-      </div>
-    </template>
-
-    <template x-if="accounts.length > 1">
-      <div class="mb-8 flex items-center gap-3">
-        <label class="text-sm font-medium text-gray-600 shrink-0">Upgrading portal:</label>
-        <select x-model.number="selectedId"
-                class="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-          <option value="" disabled>Select a portal…</option>
-          <template x-for="a in accounts" :key="a.id">
-            <option :value="a.id" x-text="a.label"></option>
-          </template>
-        </select>
-      </div>
-    </template>
-
-    <!-- Pricing grid -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-
-      {% for plan in plans %}
-        <div class="bg-white rounded-2xl border
-                    {% if plan.slug == 'professional' %}border-blue-500 ring-2 ring-blue-500{% else %}border-gray-200{% endif %}
-                    shadow-sm p-6 flex flex-col
-                    {% if plan.slug == 'professional' %}relative mt-3{% endif %}">
-
-          {% if plan.slug == 'professional' %}
-            <div class="absolute -top-3.5 inset-x-0 flex justify-center">
-              <span class="bg-blue-600 text-white text-[10px] font-semibold uppercase tracking-wider px-3 py-1 rounded-full">
-                Most Popular
-              </span>
-            </div>
-          {% endif %}
-
-          <!-- Price -->
-          <div class="mb-5">
-            <p class="text-base font-semibold text-gray-900">{{ plan.name }}</p>
-            <div class="mt-1 flex items-end gap-1">
-              <span class="text-3xl font-bold text-gray-900">${{ plan.price_monthly|floatformat:0 }}</span>
-              {% if plan.price_monthly > 0 %}<span class="text-sm text-gray-400 mb-0.5">/mo</span>{% endif %}
-            </div>
-            {% if plan.slug == 'trial' %}
-              <p class="text-xs text-gray-400 mt-1">{{ plan.trial_days }}-day free trial</p>
-            {% endif %}
-          </div>
-
-          <!-- Features -->
-          <ul class="space-y-2 text-sm text-gray-600 flex-1 mb-6">
-            <li class="flex items-start gap-2">
-              <svg class="w-4 h-4 text-green-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-              </svg>
-              {% if plan.max_conversations_per_month == -1 %}Unlimited conversations
-              {% else %}{{ plan.max_conversations_per_month }} conversations/mo{% endif %}
-            </li>
-            <li class="flex items-start gap-2">
-              <svg class="w-4 h-4 text-green-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-              </svg>
-              {% if plan.max_automation_rules == -1 %}Unlimited automation rules
-              {% else %}{{ plan.max_automation_rules }} automation rule{{ plan.max_automation_rules|pluralize }}{% endif %}
-            </li>
-            <li class="flex items-start gap-2">
-              <svg class="w-4 h-4 text-green-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-              </svg>
-              {{ plan.max_whatsapp_numbers }} WhatsApp number{{ plan.max_whatsapp_numbers|pluralize }}
-            </li>
-            {% if plan.has_priority_support %}
-              <li class="flex items-start gap-2">
-                <svg class="w-4 h-4 text-green-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                </svg>
-                Priority support
-              </li>
-            {% endif %}
-          </ul>
-
-          <!-- CTA -->
-          {% if plan.slug == 'trial' %}
-            <span class="block w-full text-center bg-gray-100 text-gray-400 text-sm font-medium py-2.5 rounded-xl cursor-default">
-              Auto-applied on signup
-            </span>
-          {% else %}
-            <!-- Enabled state: account selected -->
-            <a x-show="selectedId"
-               :href="`/billing/checkout/?account=${selectedId}&plan={{ plan.slug }}`"
-               class="block w-full text-center
-                      {% if plan.slug == 'professional' %}bg-blue-600 hover:bg-blue-700{% else %}bg-gray-900 hover:bg-gray-800{% endif %}
-                      text-white text-sm font-medium py-2.5 rounded-xl transition-colors">
-              Upgrade to {{ plan.name }}
-            </a>
-            <!-- Disabled state: no account selected yet -->
-            <button x-show="!selectedId"
-                    disabled
-                    class="block w-full text-center bg-gray-200 text-gray-400 text-sm font-medium py-2.5 rounded-xl cursor-not-allowed">
-              Select a portal first
-            </button>
-          {% endif %}
-
-        </div>
-      {% endfor %}
-
-    </div>
-
-    <!-- Current subscriptions -->
-    {% if accounts %}
-      <div class="mt-16">
-        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Current Subscriptions</h2>
-        <div class="space-y-2">
-          {% for account in accounts %}
-            <div class="bg-white rounded-xl border border-gray-200 px-5 py-4 flex items-center justify-between gap-4">
-              <div>
-                <p class="text-sm font-medium text-gray-900">{{ account.company_name }}</p>
-                <p class="text-xs text-gray-400 font-mono mt-0.5">{{ account.domain }}</p>
-              </div>
-              {% if account.subscription %}
-                {% with sub=account.subscription %}
-                  <div class="text-right shrink-0">
-                    <span class="inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-full
-                                 {% if sub.status == 'active' %}bg-purple-50 text-purple-700
-                                 {% elif sub.status == 'trialing' %}bg-yellow-50 text-yellow-700
-                                 {% elif sub.status == 'expired' %}bg-red-50 text-red-600
-                                 {% else %}bg-gray-100 text-gray-500{% endif %}">
-                      {{ sub.plan.name }}{% if sub.status == 'trialing' %} · Trial{% endif %}{% if sub.status == 'expired' %} · Expired{% endif %}
-                    </span>
-                    {% if sub.is_trialing and sub.trial_ends_at %}
-                      <p class="text-xs text-gray-400 mt-1">Ends {{ sub.trial_ends_at|date:"M j, Y" }}</p>
-                    {% elif sub.current_period_end %}
-                      <p class="text-xs text-gray-400 mt-1">Renews {{ sub.current_period_end|date:"M j, Y" }}</p>
-                    {% endif %}
-                  </div>
-                {% endwith %}
-              {% else %}
-                <span class="text-xs text-gray-400 shrink-0">No subscription</span>
-              {% endif %}
-            </div>
-          {% endfor %}
+        <div>
+          <p class="text-gray-400 text-xs">Emails this month</p>
+          <p class="font-semibold text-gray-900 mt-0.5">
+            {{ emails_used }}{% if subscription.plan.max_emails_per_month != -1 %} / {{ subscription.plan.max_emails_per_month }}{% endif %}
+          </p>
         </div>
       </div>
-    {% endif %}
+    </div>
+  </div>
+{% endif %}
 
-  </main>
+<!-- Pricing grid -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+  {% for plan in plans %}
+    <div class="bg-white rounded-2xl border
+                {% if plan.slug == 'professional' %}border-blue-500 ring-2 ring-blue-500 relative mt-3{% else %}border-gray-200{% endif %}
+                shadow-sm p-6 flex flex-col">
 
-  <script>
-  document.addEventListener('alpine:init', () => {
-    Alpine.data('plans', () => ({
-      accounts: {{ accounts_json|safe }},
-      selectedId: {{ preselected_id|default:'null' }},
+      {% if plan.slug == 'professional' %}
+        <div class="absolute -top-3.5 inset-x-0 flex justify-center">
+          <span class="bg-blue-600 text-white text-[10px] font-semibold uppercase tracking-wider px-3 py-1 rounded-full">
+            Most Popular
+          </span>
+        </div>
+      {% endif %}
 
-      init() {
-        if (this.accounts.length === 1) {
-          this.selectedId = this.accounts[0].id;
-        }
-      },
-    }));
-  });
-  </script>
+      <!-- Price -->
+      <div class="mb-5">
+        <p class="text-base font-semibold text-gray-900">{{ plan.name }}</p>
+        <div class="mt-1 flex items-end gap-1">
+          <span class="text-3xl font-bold text-gray-900">${{ plan.price_monthly|floatformat:0 }}</span>
+          {% if plan.price_monthly > 0 %}<span class="text-sm text-gray-400 mb-0.5">/mo</span>{% endif %}
+        </div>
+        {% if plan.slug == 'trial' %}
+          <p class="text-xs text-gray-400 mt-1">{{ plan.trial_days }}-day free trial</p>
+        {% endif %}
+      </div>
 
-</body>
-</html>
+      <!-- Features -->
+      <ul class="space-y-2 text-sm text-gray-600 flex-1 mb-6">
+        {% spaceless %}
+        <li class="flex items-start gap-2">
+          <svg class="w-4 h-4 text-green-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+          {% if plan.max_whatsapp_numbers == -1 %}Unlimited WhatsApp numbers
+          {% else %}{{ plan.max_whatsapp_numbers }} WhatsApp number{{ plan.max_whatsapp_numbers|pluralize }}{% endif %}
+        </li>
+        <li class="flex items-start gap-2">
+          <svg class="w-4 h-4 text-green-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+          {% if plan.max_conversations_per_month == -1 %}Unlimited conversations
+          {% else %}{{ plan.max_conversations_per_month }} conversations/mo{% endif %}
+        </li>
+        <li class="flex items-start gap-2">
+          <svg class="w-4 h-4 text-green-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+          {% if plan.max_emails_per_month == -1 %}Unlimited emails
+          {% else %}{{ plan.max_emails_per_month }} emails/mo{% endif %}
+        </li>
+        <li class="flex items-start gap-2">
+          <svg class="w-4 h-4 text-green-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+          {% if plan.max_automation_rules == -1 %}Unlimited automation rules
+          {% else %}{{ plan.max_automation_rules }} automation rule{{ plan.max_automation_rules|pluralize }}{% endif %}
+        </li>
+        {% if plan.has_priority_support %}
+          <li class="flex items-start gap-2">
+            <svg class="w-4 h-4 text-green-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            Priority support
+          </li>
+        {% endif %}
+        {% endspaceless %}
+      </ul>
+
+      <!-- CTA -->
+      {% if plan.slug == current_plan_slug %}
+        <span class="block w-full text-center bg-blue-50 text-blue-700 text-sm font-medium py-2.5 rounded-xl cursor-default border border-blue-200">
+          Current plan
+        </span>
+      {% elif plan.slug == 'trial' %}
+        <span class="block w-full text-center bg-gray-100 text-gray-400 text-sm font-medium py-2.5 rounded-xl cursor-default">
+          Auto-applied on signup
+        </span>
+      {% else %}
+        <a href="/billing/checkout/?plan={{ plan.slug }}"
+           class="block w-full text-center
+                  {% if plan.slug == 'professional' %}bg-blue-600 hover:bg-blue-700{% else %}bg-gray-900 hover:bg-gray-800{% endif %}
+                  text-white text-sm font-medium py-2.5 rounded-xl transition-colors">
+          {% if subscription and subscription.plan.price_monthly < plan.price_monthly %}Upgrade to {{ plan.name }}{% else %}Choose {{ plan.name }}{% endif %}
+        </a>
+      {% endif %}
+
+    </div>
+  {% endfor %}
+</div>
+
+<p class="text-center text-xs text-gray-400 mt-10">
+  Need WhatsApp + email at higher volume? <a href="/dashboard/" class="text-blue-600">Contact us from your dashboard.</a>
+</p>
+
+{% endblock %}

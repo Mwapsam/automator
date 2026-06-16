@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Automator — WhatsApp Business API &amp; Email for teams</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-white text-gray-900 antialiased">
+
+  <!-- Nav -->
+  <header class="border-b border-gray-100">
+    <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+      <a href="/" class="font-semibold text-blue-600 text-lg">Automator</a>
+      <nav class="flex items-center gap-6 text-sm">
+        <a href="#features" class="text-gray-600 hover:text-gray-900 hidden sm:inline">Features</a>
+        <a href="#pricing" class="text-gray-600 hover:text-gray-900 hidden sm:inline">Pricing</a>
+        {% if user.is_authenticated %}
+          <a href="/dashboard/" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl">Go to dashboard</a>
+        {% else %}
+          <a href="/auth/login/" class="text-gray-600 hover:text-gray-900">Sign in</a>
+          <a href="/signup/" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl">Get started</a>
+        {% endif %}
+      </nav>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="max-w-6xl mx-auto px-6 pt-20 pb-16 text-center">
+    <span class="inline-block text-xs font-semibold uppercase tracking-wider text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
+      WhatsApp Business API · Transactional Email
+    </span>
+    <h1 class="mt-6 text-4xl sm:text-5xl font-bold tracking-tight max-w-3xl mx-auto leading-tight">
+      Reach your customers on WhatsApp and email — from one platform.
+    </h1>
+    <p class="mt-5 text-lg text-gray-500 max-w-2xl mx-auto">
+      Send WhatsApp messages through the official Business API and deliver transactional
+      email from your own domains. Self-serve onboarding, usage-based plans, no infrastructure to run.
+    </p>
+    <div class="mt-8 flex items-center justify-center gap-3">
+      <a href="/signup/" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-6 py-3 rounded-xl">
+        Start free trial
+      </a>
+      <a href="#pricing" class="text-sm font-medium text-gray-700 px-6 py-3 rounded-xl border border-gray-200 hover:bg-gray-50">
+        See pricing
+      </a>
+    </div>
+    <p class="mt-4 text-xs text-gray-400">14-day free trial · no credit card required</p>
+  </section>
+
+  <!-- Features -->
+  <section id="features" class="bg-gray-50 border-y border-gray-100">
+    <div class="max-w-6xl mx-auto px-6 py-16 grid sm:grid-cols-3 gap-8">
+      <div class="bg-white rounded-2xl border border-gray-200 p-6">
+        <div class="w-10 h-10 rounded-xl bg-green-100 text-green-600 flex items-center justify-center text-lg">💬</div>
+        <h3 class="mt-4 font-semibold">WhatsApp Business API</h3>
+        <p class="mt-2 text-sm text-gray-500">
+          Connect your WhatsApp numbers, send templates and session messages, and track
+          delivery — built on Meta's Cloud API.
+        </p>
+      </div>
+      <div class="bg-white rounded-2xl border border-gray-200 p-6">
+        <div class="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center text-lg">✉️</div>
+        <h3 class="mt-4 font-semibold">Transactional email</h3>
+        <p class="mt-2 text-sm text-gray-500">
+          Provision sending domains with DKIM in a click and send via a simple API.
+          Deliverability handled, logs included.
+        </p>
+      </div>
+      <div class="bg-white rounded-2xl border border-gray-200 p-6">
+        <div class="w-10 h-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center text-lg">⚙️</div>
+        <h3 class="mt-4 font-semibold">Automation &amp; integrations</h3>
+        <p class="mt-2 text-sm text-gray-500">
+          Rules to auto-reply and route messages, with optional Bitrix24 CRM sync as an addon.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing -->
+  <section id="pricing" class="max-w-6xl mx-auto px-6 py-16">
+    <div class="text-center mb-10">
+      <h2 class="text-2xl font-bold">Simple, usage-based pricing</h2>
+      <p class="mt-2 text-sm text-gray-500">Start on a free trial. Upgrade as you grow.</p>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      {% for plan in plans %}
+        <div class="bg-white rounded-2xl border {% if plan.slug == 'professional' %}border-blue-500 ring-2 ring-blue-500{% else %}border-gray-200{% endif %} p-6 flex flex-col">
+          <p class="font-semibold">{{ plan.name }}</p>
+          <div class="mt-1 flex items-end gap-1">
+            <span class="text-3xl font-bold">${{ plan.price_monthly|floatformat:0 }}</span>
+            {% if plan.price_monthly > 0 %}<span class="text-sm text-gray-400 mb-0.5">/mo</span>{% endif %}
+          </div>
+          <ul class="mt-4 space-y-1.5 text-sm text-gray-600 flex-1">
+            <li>{% if plan.max_whatsapp_numbers == -1 %}Unlimited{% else %}{{ plan.max_whatsapp_numbers }}{% endif %} WhatsApp number{{ plan.max_whatsapp_numbers|pluralize }}</li>
+            <li>{% if plan.max_conversations_per_month == -1 %}Unlimited{% else %}{{ plan.max_conversations_per_month }}{% endif %} conversations/mo</li>
+            <li>{% if plan.max_emails_per_month == -1 %}Unlimited{% else %}{{ plan.max_emails_per_month }}{% endif %} emails/mo</li>
+            {% if plan.has_priority_support %}<li>Priority support</li>{% endif %}
+          </ul>
+          <a href="/signup/" class="mt-6 block text-center {% if plan.slug == 'professional' %}bg-blue-600 hover:bg-blue-700{% else %}bg-gray-900 hover:bg-gray-800{% endif %} text-white text-sm font-medium py-2.5 rounded-xl">
+            {% if plan.slug == 'trial' %}Start free{% else %}Choose {{ plan.name }}{% endif %}
+          </a>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="bg-blue-600">
+    <div class="max-w-6xl mx-auto px-6 py-14 text-center text-white">
+      <h2 class="text-2xl font-bold">Ready to start sending?</h2>
+      <p class="mt-2 text-blue-100">Create your workspace and connect a channel in minutes.</p>
+      <a href="/signup/" class="mt-6 inline-block bg-white text-blue-700 text-sm font-medium px-6 py-3 rounded-xl hover:bg-blue-50">
+        Create your account
+      </a>
+    </div>
+  </section>
+
+  <footer class="border-t border-gray-100">
+    <div class="max-w-6xl mx-auto px-6 py-8 text-center text-xs text-gray-400">
+      © Automator · WhatsApp Business API &amp; email for teams
+    </div>
+  </footer>
+
+</body>
+</html>
