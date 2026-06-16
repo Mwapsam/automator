@@ -137,6 +137,12 @@ FIELD_ENCRYPTION_KEYS = [FIELD_ENCRYPTION_KEY]
 WHATSAPP_VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN")
 WHATSAPP_APP_SECRET = os.getenv("WHATSAPP_APP_SECRET")
 
+# Embedded Signup (Tech Provider onboarding). app_id + config_id come from the
+# onboarding link Meta gives you in the App dashboard.
+WHATSAPP_APP_ID = os.getenv("WHATSAPP_APP_ID", "")
+WHATSAPP_CONFIG_ID = os.getenv("WHATSAPP_CONFIG_ID", "")
+WHATSAPP_GRAPH_VERSION = os.getenv("WHATSAPP_GRAPH_VERSION", "v21.0")
+
 if not DEBUG:
     if not WHATSAPP_VERIFY_TOKEN:
         raise ValueError("WHATSAPP_VERIFY_TOKEN is missing")
