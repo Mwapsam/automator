@@ -19,7 +19,8 @@ dependencies = [
     "b24pysdk[django] (>=1.1.4,<2.0.0)",
     "whitenoise (>=6.12.0,<7.0.0)",
     "pillow (>=12.2.0,<13.0.0)",
-    "gunicorn (>=23.0,<24.0)"
+    "gunicorn (>=23.0,<24.0)",
+    "sentry-sdk[django] (>=2.0,<3.0)"
 ]
 
 
