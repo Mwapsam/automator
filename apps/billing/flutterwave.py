@@ -54,6 +54,36 @@ class FlutterwaveClient:
 
         return data["data"]["link"]
 
+    def create_payment_plan(self, *, name: str, amount, interval: str = "monthly", currency: str = "USD") -> dict:
+        """Create a recurring payment plan on Flutterwave; returns its data (incl. id)."""
+        payload = {"amount": str(amount), "name": name, "interval": interval, "currency": currency}
+        r = self._session.post(f"{BASE_URL}/payment-plans", json=payload, timeout=15)
+        try:
+            data = r.json()
+        except Exception:
+            r.raise_for_status()
+            raise FlutterwaveError("Invalid JSON response from Flutterwave")
+        if r.status_code not in (200, 201) or data.get("status") != "success":
+            raise FlutterwaveError(data.get("message", "Payment plan creation failed"))
+        return data["data"]
+
+    def get_subscriptions(self, *, email: str | None = None, plan_id=None) -> list:
+        """List subscriptions, optionally filtered by customer email and/or plan id."""
+        params = {}
+        if email:
+            params["email"] = email
+        if plan_id:
+            params["plan"] = plan_id
+        r = self._session.get(f"{BASE_URL}/subscriptions", params=params, timeout=15)
+        try:
+            data = r.json()
+        except Exception:
+            r.raise_for_status()
+            raise FlutterwaveError("Invalid JSON response from Flutterwave")
+        if r.status_code != 200 or data.get("status") != "success":
+            raise FlutterwaveError(data.get("message", "Could not list subscriptions"))
+        return data.get("data") or []
+
     def verify_transaction(self, transaction_id) -> dict:
         r = self._session.get(f"{BASE_URL}/transactions/{transaction_id}/verify", timeout=15)
         try:

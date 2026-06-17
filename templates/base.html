@@ -68,9 +68,9 @@
   <div class="transition-[padding] duration-200"
        :class="$store.ui.sidebarCollapsed ? 'lg:pl-[4.75rem]' : 'lg:pl-64'">
 
-    {# Topbar #}
+    {# Topbar — sits below the sidebar (whose logo must stay visible). #}
     <header class="sticky top-0 h-16 bg-white/90 backdrop-blur border-b border-border flex items-center gap-3 px-4 sm:px-6"
-            style="z-index: var(--z-sticky)">
+            style="z-index: 30">
       <button type="button" class="lg:hidden btn-ghost rounded-lg p-2" x-data
               @click="$store.ui.openDrawer()" aria-label="Open menu">
         {% include "components/icon.html" with name="menu" class="w-5 h-5" %}

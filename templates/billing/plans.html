@@ -54,12 +54,14 @@
         {% endif %}
       </div>
       <div class="flex gap-8 text-sm">
+        {% if WHATSAPP_ENABLED %}
         <div>
           <p class="text-gray-400 text-xs">Conversations this month</p>
           <p class="font-semibold text-gray-900 mt-0.5">
             {{ conversations_used }}{% if subscription.plan.max_conversations_per_month != -1 %} / {{ subscription.plan.max_conversations_per_month }}{% endif %}
           </p>
         </div>
+        {% endif %}
         <div>
           <p class="text-gray-400 text-xs">Emails this month</p>
           <p class="font-semibold text-gray-900 mt-0.5">
@@ -68,6 +70,18 @@
         </div>
       </div>
     </div>
+    {% if subscription.is_active and subscription.plan.slug != 'trial' %}
+      <div class="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between gap-3">
+        <p class="text-xs text-gray-400">
+          {% if subscription.fw_subscription_id %}Recurring monthly billing via Flutterwave.{% else %}Billed monthly.{% endif %}
+        </p>
+        <form method="post" action="{% url 'billing:cancel' %}"
+              onsubmit="return confirm('Cancel your subscription? Recurring billing will stop.');">
+          {% csrf_token %}
+          <button class="btn btn-danger-ghost btn-sm" type="submit">Cancel subscription</button>
+        </form>
+      </div>
+    {% endif %}
   </div>
 {% endif %}
 
@@ -222,6 +236,20 @@
           </form>
         </div>
       </div>
+
+      {% if plan.price_monthly > 0 %}
+      <div class="mt-2 flex items-center justify-between gap-2 text-xs">
+        {% if plan.flutterwave_plan_id %}
+          <span class="text-gray-400">Recurring billing: Flutterwave <code>{{ plan.flutterwave_plan_id }}</code></span>
+        {% else %}
+          <span class="text-amber-600">No recurring plan yet</span>
+          <form method="post" action="{% url 'billing:plan-sync-fw' plan.pk %}">
+            {% csrf_token %}
+            <button class="btn btn-ghost btn-sm" type="submit">Create recurring plan</button>
+          </form>
+        {% endif %}
+      </div>
+      {% endif %}
 
       <div x-show="edit" x-cloak class="fixed inset-0 flex items-center justify-center p-4"
            style="z-index: var(--z-modal)" @keydown.escape.window="edit = false" role="dialog" aria-modal="true">

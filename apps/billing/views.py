@@ -166,6 +166,13 @@ def checkout(request):
 
     try:
         fw = get_fw_client()
+        # Ensure a recurring payment plan exists so the charge auto-renews monthly.
+        if not plan.flutterwave_plan_id:
+            fp = fw.create_payment_plan(
+                name=plan.name, amount=plan.price_monthly, interval="monthly", currency=currency
+            )
+            plan.flutterwave_plan_id = str(fp.get("id") or "")
+            plan.save(update_fields=["flutterwave_plan_id"])
         link = fw.initialize_payment(
             tx_ref=tx_ref,
             amount=plan.price_monthly,
@@ -226,6 +233,7 @@ def callback(request):
         return redirect("/dashboard/")
 
     now = timezone.now()
+    cust_email = (transaction.get("customer") or {}).get("email")
     Subscription.objects.update_or_create(
         account=account,
         defaults={
@@ -233,11 +241,24 @@ def callback(request):
             "status": Subscription.ACTIVE,
             "current_period_start": now,
             "current_period_end": now + timedelta(days=30),
-            "fw_customer_email": (transaction.get("customer") or {}).get("email"),
+            "fw_customer_email": cust_email,
             "trial_ends_at": None,
             "cancelled_at": None,
         },
     )
+
+    # Capture the Flutterwave recurring-subscription id so it can be cancelled later.
+    if plan.flutterwave_plan_id and cust_email:
+        try:
+            subs = get_fw_client().get_subscriptions(
+                email=cust_email, plan_id=plan.flutterwave_plan_id
+            )
+            if subs:
+                Subscription.objects.filter(account=account).update(
+                    fw_subscription_id=str(subs[0].get("id") or "")
+                )
+        except FlutterwaveError as exc:
+            logger.warning("callback: could not capture fw_subscription_id: %s", exc)
 
     logger.info(
         "callback: activated %s subscription for account=%s tx=%s",
@@ -245,6 +266,59 @@ def callback(request):
     )
     messages.success(request, f"Successfully subscribed to {plan.name}!")
     return redirect("/dashboard/")
+
+
+@login_required
+@require_POST
+def cancel_subscription(request):
+    """Tenant cancels their own subscription — cancels the recurring charge on
+    Flutterwave (if any), then marks it cancelled locally."""
+    account = get_current_account(request)
+    if account is None:
+        return redirect("/dashboard/")
+    sub = getattr(account, "subscription", None)
+    if not sub or not sub.is_active:
+        messages.error(request, "No active subscription to cancel.")
+        return redirect("/billing/plans/")
+
+    if sub.fw_subscription_id:
+        try:
+            get_fw_client().cancel_subscription(sub.fw_subscription_id)
+        except FlutterwaveError as exc:
+            logger.error("cancel_subscription: FW error for account=%s: %s", account.pk, exc)
+            messages.error(request, f"Could not cancel recurring billing: {exc}")
+            return redirect("/billing/plans/")
+
+    sub.status = Subscription.CANCELLED
+    sub.cancelled_at = timezone.now()
+    sub.save(update_fields=["status", "cancelled_at", "updated_at"])
+    messages.success(request, "Your subscription has been cancelled.")
+    return redirect("/billing/plans/")
+
+
+@login_required
+@require_POST
+def plan_sync_fw(request, pk):
+    """Admin: create the Flutterwave recurring payment plan for a package."""
+    if not request.user.is_superuser:
+        return redirect("/billing/plans/")
+    plan = get_object_or_404(Plan, pk=pk)
+    if plan.price_monthly <= 0:
+        messages.error(request, "Free/trial packages don't need a Flutterwave plan.")
+        return redirect("billing:plans")
+    currency = getattr(settings, "FLUTTERWAVE_CURRENCY", "USD")
+    try:
+        fp = get_fw_client().create_payment_plan(
+            name=plan.name, amount=plan.price_monthly, interval="monthly", currency=currency
+        )
+        plan.flutterwave_plan_id = str(fp.get("id") or "")
+        plan.save(update_fields=["flutterwave_plan_id"])
+        messages.success(
+            request, f"Recurring plan created on Flutterwave (id {plan.flutterwave_plan_id})."
+        )
+    except FlutterwaveError as exc:
+        messages.error(request, f"Flutterwave error: {exc}")
+    return redirect("billing:plans")
 
 
 @csrf_exempt

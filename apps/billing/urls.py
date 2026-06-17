@@ -9,9 +9,11 @@ urlpatterns = [
     path("checkout/", views.checkout, name="checkout"),
     path("callback/", views.callback, name="callback"),
     path("webhook/", views.webhook, name="webhook"),
+    path("cancel/", views.cancel_subscription, name="cancel"),
     # Admin package management
     path("plans/create/", views.plan_create, name="plan-create"),
     path("plans/<int:pk>/edit/", views.plan_edit, name="plan-edit"),
     path("plans/<int:pk>/toggle/", views.plan_toggle, name="plan-toggle"),
     path("plans/<int:pk>/delete/", views.plan_delete, name="plan-delete"),
+    path("plans/<int:pk>/sync-fw/", views.plan_sync_fw, name="plan-sync-fw"),
 ]
