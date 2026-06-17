@@ -1,96 +1,149 @@
 {% extends "base.html" %}
 {% block title %}Dashboard — Automator{% endblock %}
+
+{% block page_header %}
+{% if account %}
+<div class="mb-6">
+  <h1 class="text-2xl font-semibold tracking-tight">{{ account.company_name }}</h1>
+  {% if subscription %}
+    <p class="text-sm text-gray-500 mt-1">
+      {{ subscription.plan.name }} plan ·
+      <span class="capitalize">{{ subscription.status }}</span>
+      {% if subscription.is_trialing and subscription.trial_ends_at %} · trial ends {{ subscription.trial_ends_at|date:"M j" }}{% endif %}
+    </p>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+
 {% block content %}
 
 {% if account is None %}
-  <div class="bg-white border border-gray-200 rounded-2xl p-8 text-center">
+  <div class="card card-pad text-center max-w-md mx-auto mt-10">
     <h1 class="text-lg font-semibold">No workspace yet</h1>
-    <p class="text-sm text-gray-500 mt-2">This user isn't attached to any account.</p>
+    <p class="text-sm text-gray-500 mt-2">This account isn't attached to a workspace.</p>
   </div>
 {% else %}
+
   {% if not onboarding_complete %}
-    <a href="/onboarding/" class="block mb-6 bg-blue-50 border border-blue-200 rounded-2xl px-5 py-4 hover:bg-blue-100/60 transition">
-      <div class="flex items-center justify-between gap-4">
-        <div>
-          <p class="text-sm font-medium text-blue-800">Finish setting up your workspace</p>
-          <p class="text-xs text-blue-600 mt-0.5">{{ onboarding_done }} of {{ onboarding_total }} steps complete — set up email to start sending.</p>
-        </div>
-        <span class="text-sm font-medium text-blue-700 shrink-0">Continue →</span>
+  <a href="/onboarding/" class="block mb-6 rounded-2xl border border-brand-200 bg-brand-50 px-5 py-4 hover:bg-brand-100/60 transition">
+    <div class="flex items-center justify-between gap-4">
+      <div>
+        <p class="text-sm font-medium text-brand-800">Finish setting up your workspace</p>
+        <p class="text-xs text-brand-600 mt-0.5">{{ onboarding_done }} of {{ onboarding_total }} steps complete — set up email to start sending.</p>
       </div>
-    </a>
+      <span class="text-sm font-medium text-brand-700 shrink-0">Continue →</span>
+    </div>
+  </a>
   {% endif %}
 
-  <div class="flex items-center justify-between mb-6">
-    <div>
-      <h1 class="text-2xl font-semibold">{{ account.company_name }}</h1>
-      {% if subscription %}
-        <p class="text-sm text-gray-500 mt-1">
-          Plan: <span class="font-medium">{{ subscription.plan.name }}</span>
-          · <span class="capitalize">{{ subscription.status }}</span>
-        </p>
-      {% endif %}
-    </div>
+  {# Stat cards #}
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    {% include "components/stat_card.html" with label="Sent this month" value=sent_month icon="inbox" tone="brand" %}
+    {% include "components/stat_card.html" with label="Success rate" value=success_rate_display icon="check-circle" tone="success" sub=failed_sub %}
+    {% include "components/stat_card.html" with label="Verified domains" value=domains_verified icon="globe" tone="brand" sub=domains_sub %}
+    {% include "components/stat_card.html" with label="Active mailboxes" value=mailboxes_active icon="user" tone="brand" sub=mailboxes_sub %}
   </div>
 
-  <div class="grid sm:grid-cols-2 gap-4">
-
-    {% if WHATSAPP_ENABLED %}
-    <!-- WhatsApp -->
-    <div class="bg-white border border-gray-200 rounded-2xl p-6">
-      <div class="flex items-center justify-between">
-        <h2 class="font-semibold">WhatsApp numbers</h2>
-        <a href="/whatsapp/numbers/" class="text-sm text-blue-600">Manage</a>
+  <div class="grid lg:grid-cols-3 gap-4 mt-4">
+    {# Usage #}
+    <div class="card card-pad lg:col-span-2">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="font-semibold">Email usage this month</h2>
+        <a href="/billing/plans/" class="text-sm text-brand-600 hover:text-brand-700">Manage plan</a>
       </div>
-      <p class="text-3xl font-semibold mt-3">{{ numbers|length }}</p>
-      <ul class="mt-3 space-y-1">
-        {% for n in numbers %}
-          <li class="text-sm text-gray-600">{{ n.phone_number_id }}{% if n.display_number %} · {{ n.display_number }}{% endif %}</li>
-        {% empty %}
-          <li class="text-sm text-gray-400">No numbers registered yet.</li>
-        {% endfor %}
-      </ul>
-    </div>
-    {% endif %}
-
-    <!-- Email -->
-    <div class="bg-white border border-gray-200 rounded-2xl p-6">
-      <div class="flex items-center justify-between">
-        <h2 class="font-semibold">Email domains</h2>
-        <a href="/email/domains/" class="text-sm text-blue-600">Manage</a>
-      </div>
-      <p class="text-3xl font-semibold mt-3">{{ email_domains|length }}</p>
-      <ul class="mt-3 space-y-1">
-        {% for d in email_domains %}
-          <li class="text-sm text-gray-600">{{ d.domain }} · <span class="capitalize">{{ d.status }}</span></li>
-        {% empty %}
-          <li class="text-sm text-gray-400">No sending domains yet.</li>
-        {% endfor %}
-      </ul>
-    </div>
-
-    <!-- Mailboxes -->
-    <div class="bg-white border border-gray-200 rounded-2xl p-6">
-      <div class="flex items-center justify-between">
-        <h2 class="font-semibold">Mailboxes</h2>
-        <a href="/email/mailboxes/" class="text-sm text-blue-600">Manage</a>
-      </div>
-      <p class="text-sm text-gray-400 mt-3">Create mailboxes &amp; aliases on your verified domains.</p>
-    </div>
-
-    {% if BITRIX_ENABLED %}
-    <!-- Bitrix addon -->
-    <div class="bg-white border border-gray-200 rounded-2xl p-6">
-      <h2 class="font-semibold">Bitrix24 <span class="text-xs text-gray-400">(addon)</span></h2>
-      {% if bitrix_connection %}
-        <p class="text-sm text-gray-600 mt-3">Connected: {{ bitrix_connection.domain }}</p>
+      {% if email_quota and email_quota > 0 %}
+        <div class="flex items-end justify-between mb-2">
+          <p class="text-2xl font-semibold">{{ emails_used }}<span class="text-sm font-normal text-gray-400"> / {{ email_quota }}</span></p>
+          <p class="text-sm text-gray-400">{{ usage_pct }}%</p>
+        </div>
+        <div class="h-2 bg-gray-100 rounded-full overflow-hidden" role="progressbar"
+             aria-valuenow="{{ usage_pct }}" aria-valuemin="0" aria-valuemax="100">
+          <div class="h-full rounded-full transition-all {% if usage_pct >= 90 %}bg-red-500{% elif usage_pct >= 75 %}bg-amber-500{% else %}bg-brand-600{% endif %}"
+               style="width: {{ usage_pct }}%"></div>
+        </div>
       {% else %}
-        <p class="text-sm text-gray-400 mt-3">Not connected.</p>
-        <a href="/auth/bitrix/connect/" class="inline-block mt-3 text-sm text-blue-600">Connect Bitrix24</a>
+        <p class="text-2xl font-semibold">{{ emails_used }}</p>
+        <p class="text-sm text-gray-400 mt-1">emails this month{% if not subscription %} · no active plan{% endif %}</p>
       {% endif %}
     </div>
-    {% endif %}
 
+    {# Subscription #}
+    <div class="card card-pad">
+      <h2 class="font-semibold mb-3">Subscription</h2>
+      {% if subscription %}
+        <p class="text-sm text-gray-900 font-medium">{{ subscription.plan.name }}</p>
+        <p class="mt-1">
+          {% if subscription.status == 'active' %}<span class="badge badge-success">Active</span>
+          {% elif subscription.status == 'trialing' %}<span class="badge badge-info">Trialing</span>
+          {% elif subscription.status == 'past_due' %}<span class="badge badge-warning">Past due</span>
+          {% else %}<span class="badge badge-neutral capitalize">{{ subscription.status }}</span>{% endif %}
+        </p>
+        {% if subscription.current_period_end %}<p class="text-xs text-gray-400 mt-3">Renews {{ subscription.current_period_end|date:"M j, Y" }}</p>{% endif %}
+
+        {% with p=subscription.plan %}
+        <div class="mt-4 pt-4 border-t border-border space-y-1.5">
+          <p class="text-xs font-medium text-gray-500 mb-1">Plan includes</p>
+          {% include "components/_capability.html" with ok=p.email_apis text="RESTful API & SMTP relay" %}
+          {% include "components/_capability.html" with ok=p.inbound_email text="Inbound email processing" %}
+          {% include "components/_capability.html" with ok=p.tracking_webhooks text="Tracking, analytics & webhooks" %}
+          {% include "components/_capability.html" with ok=p.detailed_analytics text="Detailed analytics & insights" %}
+          {% include "components/_capability.html" with ok=p.has_priority_support text="Priority support" %}
+          <p class="text-xs text-gray-400 pt-1">{{ p.mailbox_storage_gb }} GB/mailbox · {% if p.max_aliases == -1 %}∞{% else %}{{ p.max_aliases }}{% endif %} aliases · {{ p.log_retention_days }}d log retention</p>
+        </div>
+        {% endwith %}
+      {% else %}
+        <p class="text-sm text-gray-400">No active subscription.</p>
+        <a href="/billing/plans/" class="btn btn-primary btn-sm mt-3">Choose a plan</a>
+      {% endif %}
+    </div>
   </div>
-{% endif %}
 
+  {# Recent activity + quick links #}
+  <div class="grid lg:grid-cols-3 gap-4 mt-4">
+    <div class="card lg:col-span-2 overflow-hidden">
+      <div class="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-border">
+        <h2 class="font-semibold">Recent sends</h2>
+        <a href="/email/domains/" class="text-sm text-brand-600 hover:text-brand-700">View domains</a>
+      </div>
+      {% if recent_sends %}
+        <table class="table">
+          <tbody>
+            {% for m in recent_sends %}
+              <tr>
+                <td>{{ m.to_email }}</td>
+                <td class="text-gray-500">{{ m.subject|default:"—"|truncatechars:36 }}</td>
+                <td>
+                  {% if m.status == 'sent' %}<span class="badge badge-success">Sent</span>
+                  {% elif m.status == 'failed' %}<span class="badge badge-danger">Failed</span>
+                  {% else %}<span class="badge badge-warning">Queued</span>{% endif %}
+                </td>
+                <td class="text-gray-400 text-right">{{ m.created_at|date:"M j, H:i" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        {% include "components/empty_state.html" with icon="inbox" title="No emails sent yet" message="Once you send via the API, recent activity shows here." %}
+      {% endif %}
+    </div>
+
+    <div class="card card-pad">
+      <h2 class="font-semibold mb-3">Quick actions</h2>
+      <div class="space-y-2">
+        <a href="/email/domains/" class="nav-link">{% include "components/icon.html" with name="globe" class="w-5 h-5 shrink-0" %}<span>Add a domain</span></a>
+        <a href="/email/mailboxes/" class="nav-link">{% include "components/icon.html" with name="inbox" class="w-5 h-5 shrink-0" %}<span>Create a mailbox</span></a>
+        <a href="/billing/plans/" class="nav-link">{% include "components/icon.html" with name="card" class="w-5 h-5 shrink-0" %}<span>Manage billing</span></a>
+      </div>
+      {% if BITRIX_ENABLED %}
+      <div class="mt-4 pt-4 border-t border-border">
+        <p class="text-xs font-medium text-gray-500 mb-1">Bitrix24 <span class="text-gray-400">(addon)</span></p>
+        {% if bitrix_connection %}<p class="text-sm text-gray-600">Connected: {{ bitrix_connection.domain }}</p>
+        {% else %}<a href="/auth/bitrix/connect/" class="text-sm text-brand-600">Connect Bitrix24</a>{% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+{% endif %}
 {% endblock %}

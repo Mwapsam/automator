@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "apps.core",
     "apps.accounts",
     "apps.whatsapp",
     "apps.email",
@@ -39,6 +40,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Serve built static assets (CSS/JS/fonts) compressed + cache-busted.
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -62,7 +65,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
-                "apps.accounts.context_processors.feature_flags",
+                "apps.core.context_processors.site_context",
             ],
         },
     },
@@ -119,6 +122,24 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_DIRS = [BASE_DIR / "static"]
+
+# Compressed + hashed (cache-busted) static files via WhiteNoise in production.
+# In DEBUG keep the plain backend so `runserver` needs no manifest/collectstatic.
+_staticfiles_backend = (
+    "django.contrib.staticfiles.storage.StaticFilesStorage"
+    if DEBUG
+    else "whitenoise.storage.CompressedManifestStaticFilesStorage"
+)
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": _staticfiles_backend},
+}
+
+# User-uploaded files (e.g. the site logo). In DEBUG these are served by Django
+# (see automator/urls.py); in production point a web server / volume at MEDIA_ROOT.
+MEDIA_URL = "media/"
+MEDIA_ROOT = BASE_DIR / "media"
 
 BASE_DOMAIN = os.getenv("BASE_DOMAIN", "localhost:8000")
 
@@ -221,12 +242,18 @@ CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_ROUTES = {
     "apps.email.tasks.send_email": {"queue": "email"},
     "apps.email.tasks.provision_mailbox": {"queue": "email"},
+    "apps.email.tasks.prune_email_logs": {"queue": "email"},
 }
 
 CELERY_BEAT_SCHEDULE = {
     "expire-trials": {
         "task": "apps.billing.tasks.expire_trials",
         "schedule": 3600.0,
+    },
+    # Enforce per-plan log retention once a day.
+    "prune-email-logs": {
+        "task": "apps.email.tasks.prune_email_logs",
+        "schedule": 86400.0,
     },
 }
 

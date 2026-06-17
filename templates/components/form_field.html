@@ -1,0 +1,13 @@
+{% comment %}Accessible field for raw inputs.
+Usage: include components/form_field.html with name="email" label="Email" type="email" required=True placeholder="…" help="…" error=err value=val{% endcomment %}
+<div>
+  {% if label %}<label class="label" for="id_{{ name }}">{{ label }}{% if required %} <span class="text-red-500">*</span>{% endif %}</label>{% endif %}
+  <input id="id_{{ name }}" name="{{ name }}" type="{{ type|default:'text' }}"
+         value="{{ value|default:'' }}"
+         {% if placeholder %}placeholder="{{ placeholder }}"{% endif %}
+         {% if required %}required{% endif %}
+         {% if error %}aria-invalid="true" aria-describedby="err_{{ name }}"{% elif help %}aria-describedby="help_{{ name }}"{% endif %}
+         class="input{% if error %} input-error{% endif %}">
+  {% if error %}<p id="err_{{ name }}" class="field-error">{{ error }}</p>
+  {% elif help %}<p id="help_{{ name }}" class="help">{{ help }}</p>{% endif %}
+</div>

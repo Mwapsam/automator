@@ -1,0 +1,9 @@
+{% comment %}One plan-capability line. Usage: include with ok=bool text="…"{% endcomment %}
+<p class="flex items-center gap-2 text-xs {% if ok %}text-gray-600{% else %}text-gray-300{% endif %}">
+  {% if ok %}
+    {% include "components/icon.html" with name="check-circle" class="w-4 h-4 text-green-500 shrink-0" %}
+  {% else %}
+    {% include "components/icon.html" with name="x" class="w-4 h-4 shrink-0" %}
+  {% endif %}
+  <span {% if not ok %}class="line-through"{% endif %}>{{ text }}</span>
+</p>

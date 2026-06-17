@@ -14,15 +14,20 @@ def auto_create_trial(sender, instance, created, **kwargs):
         return
     try:
         from apps.billing.models import Plan, Subscription
+        from apps.core.models import SiteSettings
 
-        trial_plan = Plan.objects.get(slug=Plan.TRIAL)
+        site = SiteSettings.load()
+        plan = site.default_plan or Plan.objects.filter(slug=Plan.TRIAL).first()
+        if plan is None:
+            return
+        trial_days = plan.trial_days or site.default_trial_days
         now = timezone.now()
         Subscription.objects.get_or_create(
             account=instance,
             defaults={
-                "plan": trial_plan,
-                "status": Subscription.TRIALING,
-                "trial_ends_at": now + timedelta(days=trial_plan.trial_days),
+                "plan": plan,
+                "status": Subscription.TRIALING if trial_days else Subscription.ACTIVE,
+                "trial_ends_at": now + timedelta(days=trial_days) if trial_days else None,
                 "current_period_start": now,
             },
         )

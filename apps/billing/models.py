@@ -18,18 +18,30 @@ class Plan(models.Model):
         (BUSINESS, "Business"),
     ]
 
-    slug = models.CharField(max_length=20, unique=True, choices=SLUG_CHOICES)
+    # Free-form so admins can create custom packages; the constants above are
+    # just the seeded defaults referenced in code (signals, limits).
+    slug = models.SlugField(max_length=50, unique=True)
     name = models.CharField(max_length=100)
     price_monthly = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0.00"))
 
     max_conversations_per_month = models.IntegerField(default=100)
     max_emails_per_month = models.IntegerField(default=1000)
     max_mailboxes = models.IntegerField(default=1)
+    mailbox_storage_gb = models.PositiveIntegerField(default=10)  # storage per mailbox
+    max_forwarding_rules = models.IntegerField(default=10)        # -1 = unlimited
+    max_aliases = models.IntegerField(default=10)                 # -1 = unlimited
     max_automation_rules = models.IntegerField(default=2)
     max_whatsapp_numbers = models.IntegerField(default=1)
 
     trial_days = models.IntegerField(default=0)
     has_priority_support = models.BooleanField(default=False)
+
+    # Email-platform capabilities — toggled/edited per package by admins.
+    email_apis = models.BooleanField(default=True)          # RESTful API + SMTP relay
+    inbound_email = models.BooleanField(default=False)      # inbound email processing
+    tracking_webhooks = models.BooleanField(default=False)  # tracking, analytics & webhooks
+    detailed_analytics = models.BooleanField(default=False) # detailed analytics & insights
+    log_retention_days = models.PositiveIntegerField(default=7)  # log retention window
 
     # Set this once you create matching plans in the Flutterwave dashboard
     flutterwave_plan_id = models.CharField(max_length=100, blank=True, null=True)

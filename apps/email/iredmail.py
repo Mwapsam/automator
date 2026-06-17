@@ -188,3 +188,30 @@ class IRedMailClient:
 
     def add_alias(self, email: str, goto: str) -> dict:
         return self._post(f"alias/{email}", {"goto": goto})
+
+    # --- delivery logs (amavisd db) -------------------------------------
+
+    def domain_logs(self, domain: str, limit: int = 50, offset: int = 0):
+        return self._get(f"logs/{domain}?limit={limit}&offset={offset}")
+
+    def mailbox_logs(self, email: str, limit: int = 50):
+        return self._get(f"logs/mailbox/{email}?limit={limit}")
+
+    # --- open / click tracking ------------------------------------------
+
+    def generate_tracking(self, message_id, recipient: str, domain: str, url: str) -> dict:
+        """Return {open_pixel, click_url} for an outgoing message/link."""
+        return self._post("track/generate", {
+            "message_id": str(message_id),
+            "recipient": recipient,
+            "domain": domain,
+            "url": url,
+        })
+
+    # --- events & stats -------------------------------------------------
+
+    def message_events(self, message_id):
+        return self._get(f"events/{message_id}")
+
+    def domain_stats(self, domain: str):
+        return self._get(f"stats/{domain}")

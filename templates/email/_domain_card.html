@@ -1,0 +1,61 @@
+{% comment %}One sending-domain card. Rendered in the list loop and returned by
+AJAX create/verify/toggle. Needs: d, is_admin, mail_host.{% endcomment %}
+<div id="domain-card-{{ d.pk }}" class="card card-pad">
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div class="min-w-0">
+      <div class="flex items-center gap-2">
+        <h3 class="font-semibold text-gray-900 truncate">{{ d.domain }}</h3>
+        {% if d.status == 'verified' %}<span class="badge badge-success">Verified</span>
+        {% elif d.status == 'failed' %}<span class="badge badge-danger">Failed</span>
+        {% else %}<span class="badge badge-warning">Pending</span>{% endif %}
+        {% if not d.is_active %}<span class="badge badge-neutral">Disabled</span>{% endif %}
+      </div>
+      {% if is_admin %}<p class="text-xs text-gray-400 mt-1">{{ d.account.company_name }}</p>{% endif %}
+    </div>
+    <div class="flex items-center gap-1.5 shrink-0">
+      {% if not d.is_verified %}
+        <form data-ajax method="post" action="/email/domains/{{ d.pk }}/verify/"
+              data-swap="#domain-card-{{ d.pk }}">
+          {% csrf_token %}
+          <button class="btn btn-secondary btn-sm" type="submit">
+            {% include "components/icon.html" with name="check-circle" class="w-4 h-4" %}
+            Verify
+          </button>
+        </form>
+      {% endif %}
+      <form data-ajax method="post" action="/email/domains/{{ d.pk }}/toggle/"
+            data-swap="#domain-card-{{ d.pk }}">
+        {% csrf_token %}
+        <button class="btn btn-ghost btn-sm" type="submit">{% if d.is_active %}Disable{% else %}Enable{% endif %}</button>
+      </form>
+      <form data-ajax method="post" action="/email/domains/{{ d.pk }}/delete/"
+            data-remove="#domain-card-{{ d.pk }}"
+            data-confirm="Delete {{ d.domain }} and all its mailboxes & aliases?" data-confirm-danger
+            data-confirm-label="Delete">
+        {% csrf_token %}
+        <button class="btn btn-danger-ghost btn-sm" type="submit" aria-label="Delete {{ d.domain }}">
+          {% include "components/icon.html" with name="trash" class="w-4 h-4" %}
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <div class="mt-4 grid gap-3 text-xs">
+    <div>
+      <p class="text-gray-500 mb-1">DKIM — TXT record name</p>
+      {% include "components/copy_field.html" with value=d.dkim_record_name label="Copy" %}
+    </div>
+    <div>
+      <p class="text-gray-500 mb-1">DKIM — TXT value</p>
+      {% include "components/copy_field.html" with value=d.dkim_txt_value|default:"(pending provisioning)" label="Copy" %}
+    </div>
+    <div>
+      <p class="text-gray-500 mb-1">SPF — TXT at <code>{{ d.domain }}</code></p>
+      {% include "components/copy_field.html" with value="v=spf1 include:"|add:mail_host|add:" ~all" label="Copy" %}
+    </div>
+    <div>
+      <p class="text-gray-500 mb-1">DMARC — TXT at <code>{{ d.dmarc_record_name }}</code></p>
+      {% include "components/copy_field.html" with value="v=DMARC1; p=none; rua=mailto:dmarc@"|add:d.domain label="Copy" %}
+    </div>
+  </div>
+</div>

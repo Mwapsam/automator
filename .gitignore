@@ -18,6 +18,11 @@ staticfiles/
 media/
 logs/
 
+# Frontend build — the Tailwind standalone CLI binary (large; download per-machine).
+# The BUILT output (static/css/app.css) and vendored JS/fonts ARE committed.
+tools/tailwindcss
+tools/tailwindcss.exe
+
 # Celery
 celerybeat-schedule
 celerybeat.pid

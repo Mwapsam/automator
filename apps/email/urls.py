@@ -9,6 +9,7 @@ urlpatterns = [
     path("domains/<int:pk>/toggle/", views.domain_toggle, name="email-domain-toggle"),
     path("domains/<int:pk>/delete/", views.domain_delete, name="email-domain-delete"),
     path("keys/create/", views.key_create, name="email-key-create"),
+    path("insights/", views.insights, name="email-insights"),
     path("mailboxes/", views.mailbox_list, name="email-mailboxes"),
     path("mailboxes/create/", views.mailbox_create, name="email-mailbox-create"),
     path("mailboxes/<int:pk>/delete/", views.mailbox_delete, name="email-mailbox-delete"),

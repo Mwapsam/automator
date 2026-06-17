@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Settings — Admin{% endblock %}
+
+{% block page_header %}
+<div class="mb-6">
+  <h1 class="text-2xl font-semibold tracking-tight">Settings</h1>
+  <p class="text-sm text-gray-500 mt-1">Branding, feature flags, signup defaults and platform admins.</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid lg:grid-cols-3 gap-6">
+
+  {# Branding + config #}
+  <form method="post" action="/manage/settings/" enctype="multipart/form-data" class="lg:col-span-2 space-y-6">
+    {% csrf_token %}
+
+    <div class="card card-pad">
+      <h2 class="font-semibold mb-4">Branding</h2>
+      <div class="grid sm:grid-cols-2 gap-4">
+        {% include "components/form_field.html" with name="app_name" label="App name" value=site.app_name required=True %}
+        {% include "components/form_field.html" with name="support_email" label="Support email" type="email" value=site.support_email %}
+      </div>
+      <div class="mt-4">
+        <label class="label" for="id_logo">Logo</label>
+        <div class="flex items-center gap-4">
+          {% include "components/brand_mark.html" with class="w-12 h-12" %}
+          <input id="id_logo" name="logo" type="file" accept="image/*"
+                 class="block text-sm text-gray-600 file:mr-3 file:btn file:btn-secondary file:btn-sm file:border-0">
+        </div>
+        <p class="help">PNG or SVG, square works best. Leave empty to keep the current logo.</p>
+      </div>
+    </div>
+
+    <div class="card card-pad">
+      <h2 class="font-semibold mb-1">Feature flags</h2>
+      <p class="help mb-4">WhatsApp & Bitrix also require their server env flag to be on; these toggles can only further disable them.</p>
+      <div class="space-y-3">
+        <label class="flex items-center gap-3 text-sm">
+          <input type="checkbox" name="signups_enabled" class="rounded border-border-strong" {% if site.signups_enabled %}checked{% endif %}>
+          Allow public sign-ups
+        </label>
+        <label class="flex items-center gap-3 text-sm">
+          <input type="checkbox" name="whatsapp_enabled" class="rounded border-border-strong" {% if site.whatsapp_enabled %}checked{% endif %}>
+          WhatsApp module
+        </label>
+        <label class="flex items-center gap-3 text-sm">
+          <input type="checkbox" name="bitrix_enabled" class="rounded border-border-strong" {% if site.bitrix_enabled %}checked{% endif %}>
+          Bitrix24 module
+        </label>
+      </div>
+    </div>
+
+    <div class="card card-pad">
+      <h2 class="font-semibold mb-4">New-signup defaults</h2>
+      <div class="grid sm:grid-cols-2 gap-4">
+        <div>
+          <label class="label" for="id_default_plan">Default plan</label>
+          <select id="id_default_plan" name="default_plan" class="input">
+            <option value="">— Trial (built-in) —</option>
+            {% for pl in plans %}
+              <option value="{{ pl.pk }}" {% if site.default_plan_id == pl.pk %}selected{% endif %}>{{ pl.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% include "components/form_field.html" with name="default_trial_days" label="Default trial days" type="number" value=site.default_trial_days %}
+      </div>
+    </div>
+
+    <div><button class="btn btn-primary" type="submit">Save settings</button></div>
+  </form>
+
+  {# Admin users #}
+  <div class="card card-pad">
+    <h2 class="font-semibold mb-1">Platform admins</h2>
+    <p class="help mb-4">Admins can access this console and manage every tenant.</p>
+    <div class="space-y-2">
+      {% for u in admins %}
+        <div class="flex items-center justify-between gap-2 py-2 border-b border-border last:border-0">
+          <div class="min-w-0">
+            <p class="text-sm font-medium text-gray-900 truncate">{{ u.get_username }}{% if u == request.user %} <span class="text-xs text-gray-400">(you)</span>{% endif %}</p>
+            <p class="text-xs text-gray-400 truncate">{{ u.email|default:"—" }}</p>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            {% if u.is_superuser %}<span class="badge badge-brand">Admin</span>{% endif %}
+            {% if u != request.user %}
+              <form method="post" action="/manage/settings/users/{{ u.pk }}/toggle-admin/">
+                {% csrf_token %}
+                <button class="btn btn-ghost btn-sm" type="submit">{% if u.is_superuser %}Revoke{% else %}Make admin{% endif %}</button>
+              </form>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

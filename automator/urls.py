@@ -10,6 +10,7 @@ urlpatterns = [
     path("", include("apps.accounts.urls")),
     path("email/", include("apps.email.urls")),
     path("billing/", include("apps.billing.urls", namespace="billing")),
+    path("manage/", include("apps.core.urls", namespace="core")),
 ]
 
 # Soft-disabled verticals — only routed when their feature flag is on.
@@ -18,3 +19,9 @@ if settings.WHATSAPP_ENABLED:
 
 if settings.BITRIX_ENABLED:
     urlpatterns += [path("auth/bitrix/", include("apps.bitrix.urls"))]
+
+# Serve user-uploaded media in development.
+if settings.DEBUG:
+    from django.conf.urls.static import static
+
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

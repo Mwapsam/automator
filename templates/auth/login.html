@@ -1,102 +1,45 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sign in</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    [x-cloak] { display: none !important; }
-    input:-webkit-autofill { -webkit-box-shadow: 0 0 0 30px white inset !important; }
-  </style>
-</head>
-<body class="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-
+{% extends "base.html" %}
+{% block title %}Sign in — Automator{% endblock %}
+{% block content %}
+<div class="min-h-screen flex items-center justify-center px-4 py-12">
   <div class="w-full max-w-sm">
-
-    <!-- Logo / title -->
     <div class="text-center mb-8">
-      <div class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-blue-600 mb-4">
-        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
-        </svg>
+      <div class="inline-flex mb-4">
+        {% include "components/brand_mark.html" with class="w-12 h-12" %}
       </div>
-      <h1 class="text-xl font-semibold text-gray-900">Automator</h1>
+      <h1 class="text-xl font-semibold text-gray-900">{{ site.app_name|default:"Automator" }}</h1>
       <p class="text-sm text-gray-400 mt-1">Sign in to continue</p>
     </div>
 
-    <!-- Card -->
-    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
-
+    <div class="card card-pad sm:!p-8">
       {% if form.non_field_errors %}
-        <div class="mb-5 flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-          <svg class="w-4 h-4 text-red-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-          </svg>
+        <div class="mb-5 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+          {% include "components/icon.html" with name="alert" class="w-4 h-4 text-red-500 shrink-0 mt-0.5" %}
           <p class="text-sm text-red-700">{{ form.non_field_errors|join:" " }}</p>
         </div>
       {% endif %}
 
-      <form method="post" novalidate>
+      <form method="post" novalidate class="space-y-4">
         {% csrf_token %}
         <input type="hidden" name="next" value="{{ next }}">
-
-        <div class="space-y-4">
-
-          <!-- Username -->
-          <div>
-            <label for="id_username" class="block text-xs font-medium text-gray-600 mb-1.5">
-              Username
-            </label>
-            <input id="id_username"
-                   type="text"
-                   name="username"
-                   value="{{ form.username.value|default:'' }}"
-                   autocomplete="username"
-                   autofocus
-                   class="w-full border {% if form.username.errors %}border-red-400 bg-red-50{% else %}border-gray-300{% endif %} rounded-xl px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
-            {% if form.username.errors %}
-              <p class="text-xs text-red-600 mt-1">{{ form.username.errors|join:" " }}</p>
-            {% endif %}
-          </div>
-
-          <!-- Password -->
-          <div>
-            <label for="id_password" class="block text-xs font-medium text-gray-600 mb-1.5">
-              Password
-            </label>
-            <input id="id_password"
-                   type="password"
-                   name="password"
-                   autocomplete="current-password"
-                   class="w-full border {% if form.password.errors %}border-red-400 bg-red-50{% else %}border-gray-300{% endif %} rounded-xl px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
-            {% if form.password.errors %}
-              <p class="text-xs text-red-600 mt-1">{{ form.password.errors|join:" " }}</p>
-            {% endif %}
-          </div>
-
+        <div>
+          <label for="id_username" class="label">Username</label>
+          <input id="id_username" type="text" name="username" value="{{ form.username.value|default:'' }}"
+                 autocomplete="username" autofocus
+                 class="input{% if form.username.errors %} input-error{% endif %}">
+          {% if form.username.errors %}<p class="field-error">{{ form.username.errors|join:" " }}</p>{% endif %}
         </div>
-
-        <button type="submit"
-                class="mt-6 w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-sm font-medium py-2.5 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-          Sign in
-        </button>
+        <div>
+          <label for="id_password" class="label">Password</label>
+          <input id="id_password" type="password" name="password" autocomplete="current-password"
+                 class="input{% if form.password.errors %} input-error{% endif %}">
+          {% if form.password.errors %}<p class="field-error">{{ form.password.errors|join:" " }}</p>{% endif %}
+        </div>
+        <button type="submit" class="btn btn-primary btn-block mt-2">Sign in</button>
       </form>
-
-      {% if form.errors and not form.non_field_errors %}
-        <p class="text-xs text-center text-red-600 mt-4">Please correct the errors above.</p>
-      {% endif %}
-
     </div>
 
-    <!-- Staff note -->
-    <p class="text-center text-xs text-gray-400 mt-6">
-      Access is restricted to staff accounts.
-    </p>
-
+    <p class="text-center text-xs text-gray-400 mt-6">Access is restricted to staff accounts.</p>
   </div>
-
-</body>
-</html>
+</div>
+{% endblock %}

@@ -11,6 +11,35 @@ logger = logging.getLogger(__name__)
 _MAX_ATTEMPTS = 3
 
 
+@shared_task
+def prune_email_logs():
+    """Delete EmailMessage logs older than each account's plan retention window.
+
+    Enforces the per-plan "{N} days log retention" feature. Runs daily.
+    """
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from apps.billing.models import Subscription
+
+    total = 0
+    subs = Subscription.objects.select_related("plan").filter(
+        status__in=[Subscription.ACTIVE, Subscription.TRIALING]
+    )
+    for sub in subs:
+        days = getattr(sub.plan, "log_retention_days", 0) or 0
+        if days <= 0:
+            continue
+        cutoff = timezone.now() - timedelta(days=days)
+        deleted, _ = EmailMessage.objects.filter(
+            account_id=sub.account_id, created_at__lt=cutoff
+        ).delete()
+        total += deleted
+    logger.info("prune_email_logs: deleted %s expired log rows", total)
+    return total
+
+
 @shared_task(bind=True, max_retries=_MAX_ATTEMPTS, default_retry_delay=60)
 def provision_mailbox(self, mailbox_id: int, password: str):
     """Create a mailbox on the iRedMail server and record the outcome.
@@ -57,6 +86,19 @@ def send_email(self, email_message_id: int, text_body: str = "", html_body: str 
 
     if msg.status == EmailMessage.Status.SENT:
         return
+
+    # Open/click tracking is a plan capability — inject only when included.
+    if html_body:
+        try:
+            from apps.billing.limits import LimitChecker
+
+            if LimitChecker(msg.account).has_feature("tracking_webhooks"):
+                from apps.email.services import apply_tracking
+
+                domain = msg.domain.domain if msg.domain else msg.from_email.rsplit("@", 1)[-1]
+                html_body = apply_tracking(html_body, msg.id, msg.to_email, domain)
+        except Exception as exc:
+            logger.debug("send_email: tracking injection skipped: %s", exc)
 
     try:
         message_id = smtp_send(

@@ -1,137 +1,114 @@
 {% extends "base.html" %}
-{% block title %}Email domains — Automator{% endblock %}
+{% block title %}Sending domains — Automator{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-wrap items-end justify-between gap-3 mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold tracking-tight">Sending domains</h1>
+    <p class="text-sm text-gray-500 mt-1">Provision domains, verify DNS, and manage your transactional API key.</p>
+  </div>
+  <a href="/email/mailboxes/" class="btn btn-secondary btn-sm">
+    {% include "components/icon.html" with name="inbox" class="w-4 h-4" %}
+    Mailboxes &amp; aliases
+  </a>
+</div>
+{% endblock %}
+
 {% block content %}
 
-<div class="flex items-center justify-between mb-6">
-  <h1 class="text-2xl font-semibold">Transactional email</h1>
-  <a href="/email/mailboxes/" class="text-sm text-blue-600 hover:text-blue-700">Mailboxes &amp; aliases →</a>
-</div>
-
 {% if is_admin %}
-<div class="bg-purple-50 border border-purple-200 text-purple-700 rounded-2xl px-5 py-3 mb-6 text-sm">
-  Admin view — showing all tenants' domains with full access.
+<div class="mb-6 rounded-2xl border border-brand-200 bg-brand-50 px-5 py-3 text-sm text-brand-700">
+  Admin view — showing every tenant's domains with full access.
 </div>
 {% endif %}
 
-<!-- API key -->
-{% if account %}
-<div class="bg-white border border-gray-200 rounded-2xl p-6 mb-6">
-  <div class="flex items-center justify-between">
-    <h2 class="font-semibold">API key</h2>
-    <form method="post" action="/email/keys/create/">
+{# API key (per-tenant; hidden for account-less admins) #}
+{% if account and not email_apis_enabled %}
+<div class="card card-pad mb-6 border-amber-200 bg-amber-50/40">
+  <h2 class="font-semibold flex items-center gap-2">
+    {% include "components/icon.html" with name="key" class="w-4 h-4 text-amber-500" %} Email API &amp; SMTP relay
+  </h2>
+  <p class="text-sm text-gray-600 mt-2">Your current plan doesn't include the email API. <a href="/billing/plans/" class="text-brand-600 font-medium">Upgrade your plan</a> to generate a key and send.</p>
+</div>
+{% elif account %}
+<div class="card card-pad mb-6">
+  <div class="flex items-center justify-between mb-3">
+    <h2 class="font-semibold flex items-center gap-2">
+      {% include "components/icon.html" with name="key" class="w-4 h-4 text-gray-400" %} API key
+    </h2>
+    <form data-ajax method="post" action="/email/keys/create/" data-confirm="Regenerate the API key? The current key stops working immediately." data-confirm-label="Regenerate">
       {% csrf_token %}
-      <button class="text-sm text-blue-600">Regenerate</button>
+      <button class="btn btn-ghost btn-sm" type="submit">Regenerate</button>
     </form>
   </div>
   {% if api_key %}
-    <p class="mt-3 font-mono text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 break-all">{{ api_key.key }}</p>
-    <p class="text-xs text-gray-400 mt-2">Send with header <code>X-Api-Key: {{ api_key.key }}</code> to <code>POST /email/send/</code>.</p>
+    {% include "components/copy_field.html" with value=api_key.key label="Copy" %}
+    <p class="help mt-2">Send with header <code>X-Api-Key</code> to <code>POST /email/send/</code>.</p>
   {% else %}
-    <p class="text-sm text-gray-400 mt-3">No API key yet — generate one to start sending.</p>
+    <p class="text-sm text-gray-400">No API key yet — generate one to start sending.</p>
   {% endif %}
 </div>
 {% endif %}
 
-<!-- Add domain -->
-<div class="bg-white border border-gray-200 rounded-2xl p-6 mb-6">
+{# Add domain #}
+<div class="card card-pad mb-6">
   <h2 class="font-semibold mb-4">Add a sending domain</h2>
-  <form method="post" action="/email/domains/create/" class="flex flex-wrap gap-3">
+  <form data-ajax method="post" action="/email/domains/create/"
+        data-append="#domains-list" data-remove="#domains-empty" data-reset
+        class="flex flex-wrap gap-3">
     {% csrf_token %}
     {% if is_admin %}
-      <select name="account_id" required
-              class="border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      <label class="sr-only" for="id_account_id">Account</label>
+      <select id="id_account_id" name="account_id" required class="input sm:w-56">
         <option value="">Account…</option>
-        {% for a in accounts %}
-          <option value="{{ a.pk }}">{{ a.company_name }}</option>
-        {% endfor %}
+        {% for a in accounts %}<option value="{{ a.pk }}">{{ a.company_name }}</option>{% endfor %}
       </select>
     {% endif %}
-    <input name="domain" placeholder="mail.yourcompany.com" required
-           class="flex-1 border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-    <button class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2.5 rounded-xl">Provision</button>
+    <label class="sr-only" for="id_domain">Domain</label>
+    <input id="id_domain" name="domain" placeholder="mail.yourcompany.com" required class="input flex-1 min-w-[14rem]">
+    <button class="btn btn-primary" type="submit">
+      {% include "components/icon.html" with name="plus" class="w-4 h-4" %} Provision
+    </button>
   </form>
 </div>
 
-<!-- Domains -->
-<div class="space-y-4">
+{# Domains #}
+<div id="domains-list" class="grid gap-4">
   {% for d in domains %}
-    <div class="bg-white border border-gray-200 rounded-2xl p-6">
-      <div class="flex items-center justify-between">
-        <div>
-          <h3 class="font-semibold">
-            {{ d.domain }}
-            {% if not d.is_active %}<span class="ml-2 text-xs font-normal text-gray-400">(disabled)</span>{% endif %}
-          </h3>
-          {% if is_admin %}<p class="text-xs text-gray-400">{{ d.account.company_name }}</p>{% endif %}
-          <p class="text-xs mt-1
-            {% if d.status == 'verified' %}text-green-600{% elif d.status == 'failed' %}text-red-600{% else %}text-amber-600{% endif %}">
-            {{ d.get_status_display }}
-          </p>
-        </div>
-        <div class="flex items-center gap-4">
-          {% if not d.is_verified %}
-            <form method="post" action="/email/domains/{{ d.pk }}/verify/">
-              {% csrf_token %}
-              <button class="text-sm text-blue-600">Verify</button>
-            </form>
-          {% endif %}
-          <form method="post" action="/email/domains/{{ d.pk }}/toggle/">
-            {% csrf_token %}
-            <button class="text-sm text-gray-600 hover:text-gray-900">{% if d.is_active %}Disable{% else %}Enable{% endif %}</button>
-          </form>
-          <form method="post" action="/email/domains/{{ d.pk }}/delete/"
-                onsubmit="return confirm('Delete {{ d.domain }} and all its mailboxes &amp; aliases?');">
-            {% csrf_token %}
-            <button class="text-sm text-red-600 hover:text-red-700">Delete</button>
-          </form>
-        </div>
-      </div>
-
-      <div class="mt-4 text-xs space-y-3">
-        <div>
-          <p class="text-gray-500">DKIM — TXT record at <code>{{ d.dkim_record_name }}</code></p>
-          <p class="font-mono bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 break-all mt-1">{{ d.dkim_public_key|default:"(pending provisioning)" }}</p>
-        </div>
-        <div>
-          <p class="text-gray-500">SPF — TXT record at <code>{{ d.domain }}</code></p>
-          <p class="font-mono bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 mt-1">v=spf1 include:YOUR_MAIL_HOST ~all</p>
-        </div>
-        <div>
-          <p class="text-gray-500">DMARC — TXT record at <code>{{ d.dmarc_record_name }}</code></p>
-          <p class="font-mono bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 mt-1">v=DMARC1; p=none; rua=mailto:dmarc@{{ d.domain }}</p>
-        </div>
-      </div>
-    </div>
-  {% empty %}
-    <div class="bg-white border border-gray-200 rounded-2xl p-6 text-center text-gray-400 text-sm">
-      No sending domains yet.
-    </div>
+    {% include "email/_domain_card.html" %}
   {% endfor %}
 </div>
+{% if not domains %}
+  <div id="domains-empty" class="card">
+    {% include "components/empty_state.html" with icon="globe" title="No sending domains yet" message="Add a domain above to provision DKIM and start sending." %}
+  </div>
+{% endif %}
 
-<!-- Recent sends -->
+{# Recent sends #}
 {% if recent %}
-<div class="bg-white border border-gray-200 rounded-2xl overflow-hidden mt-6">
-  <table class="w-full text-sm">
-    <thead class="bg-gray-50 text-gray-500 text-left">
-      <tr>
-        <th class="px-4 py-3 font-medium">To</th>
-        <th class="px-4 py-3 font-medium">Subject</th>
-        <th class="px-4 py-3 font-medium">Status</th>
-        <th class="px-4 py-3 font-medium">When</th>
-      </tr>
-    </thead>
-    <tbody class="divide-y divide-gray-100">
-      {% for m in recent %}
-        <tr>
-          <td class="px-4 py-3">{{ m.to_email }}</td>
-          <td class="px-4 py-3 text-gray-500">{{ m.subject|default:"—"|truncatechars:40 }}</td>
-          <td class="px-4 py-3 capitalize">{{ m.status }}</td>
-          <td class="px-4 py-3 text-gray-400">{{ m.created_at|date:"M j, H:i" }}</td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<div class="mt-8">
+  <h2 class="font-semibold mb-3">Recent sends</h2>
+  <div class="table-wrap">
+    <table class="table">
+      <thead><tr>
+        <th>To</th><th>Subject</th><th>Status</th><th>When</th>
+      </tr></thead>
+      <tbody>
+        {% for m in recent %}
+          <tr>
+            <td>{{ m.to_email }}</td>
+            <td class="text-gray-500">{{ m.subject|default:"—"|truncatechars:40 }}</td>
+            <td>
+              {% if m.status == 'sent' %}<span class="badge badge-success">Sent</span>
+              {% elif m.status == 'failed' %}<span class="badge badge-danger">Failed</span>
+              {% else %}<span class="badge badge-warning">Queued</span>{% endif %}
+            </td>
+            <td class="text-gray-400">{{ m.created_at|date:"M j, H:i" }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 {% endif %}
 

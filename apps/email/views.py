@@ -41,6 +41,42 @@ def _scoped(manager, request, account):
     return qs
 
 
+# --- AJAX helpers -------------------------------------------------------------
+# Views below are progressively enhanced: an XHR (from static/js/app.js) gets a
+# rendered partial + an `X-Toast` header; a normal POST keeps the redirect flow,
+# so everything still works with JavaScript disabled.
+
+def is_ajax(request) -> bool:
+    return request.headers.get("x-requested-with") == "XMLHttpRequest"
+
+
+def _toast(response, kind: str, message: str):
+    # URL-encode the message so the header stays ASCII (avoids RFC 2047
+    # encoding of non-ASCII chars); app.js decodeURIComponent()s it back.
+    from urllib.parse import quote
+    response["X-Toast"] = f"{kind}|{quote(message)}"
+    return response
+
+
+def _ajax_error(message: str, status: int = 400):
+    return JsonResponse({"error": message}, status=status)
+
+
+def _domain_card(request, record):
+    from django.conf import settings
+    return render(request, "email/_domain_card.html", {
+        "d": record,
+        "is_admin": _is_admin(request),
+        "mail_host": settings.EMAIL_HOST or "YOUR_MAIL_HOST",
+    })
+
+
+def _mailbox_row(request, mb):
+    return render(request, "email/_mailbox_row.html", {
+        "mb": mb, "is_admin": _is_admin(request),
+    })
+
+
 # --- Dashboard (server-rendered, account-scoped) ------------------------------
 
 @login_required
@@ -57,12 +93,20 @@ def domains_list(request):
         if account
         else None
     )
+    from django.conf import settings
+    from apps.billing.limits import LimitChecker
+
+    # The API + SMTP relay is a plan capability; admins always see it.
+    email_apis_enabled = admin or (account and LimitChecker(account).has_feature("email_apis"))
+
     return render(request, "email/domains.html", {
         "account": account,
         "is_admin": admin,
         "domains": domains,
         "api_key": api_key,
         "recent": recent,
+        "email_apis_enabled": email_apis_enabled,
+        "mail_host": settings.EMAIL_HOST or "YOUR_MAIL_HOST",
         # Admins choose which tenant a new domain belongs to.
         "accounts": Account.objects.order_by("company_name") if admin else None,
     })
@@ -76,38 +120,50 @@ def domain_create(request):
     if account is None and not admin:
         return redirect("dashboard")
 
+    ajax = is_ajax(request)
     domain = (request.POST.get("domain") or "").strip().lower()
     if not domain:
+        if ajax:
+            return _ajax_error("Domain is required.")
         messages.error(request, "Domain is required.")
         return redirect("email-domains")
 
     if EmailDomain.objects.filter(domain=domain).exists():
-        messages.error(request, "That domain is already registered.")
+        msg = "That domain is already registered."
+        if ajax:
+            return _ajax_error(msg)
+        messages.error(request, msg)
         return redirect("email-domains")
 
     # An admin without their own workspace picks which tenant owns the domain.
     if account is None:
         account = Account.objects.filter(pk=request.POST.get("account_id")).first()
         if account is None:
-            messages.error(request, "Select an account to attach this domain to.")
+            msg = "Select an account to attach this domain to."
+            if ajax:
+                return _ajax_error(msg)
+            messages.error(request, msg)
             return redirect("email-domains")
 
     record = EmailDomain.objects.create(account=account, domain=domain)
+    kind, message = "success", f"{domain} provisioned — add the DNS records, then verify."
     try:
         client = IRedMailClient()
         result = client.provision_sending_domain(domain, selector=record.dkim_selector)
         record.dkim_public_key = result.get("dkim_txt", "")
         record.dkim_selector = result.get("selector", record.dkim_selector)
         record.save(update_fields=["dkim_public_key", "dkim_selector"])
-        messages.success(
-            request,
-            f"{domain} provisioned. Add the DNS records below, then verify.",
-        )
     except IRedMailError as exc:
         record.status = EmailDomain.Status.FAILED
         record.save(update_fields=["status"])
         logger.error("domain_create: mail server error for %s: %s", domain, exc)
-        messages.error(request, f"Provisioning failed: {exc}")
+        kind, message = "danger", f"Provisioning failed: {exc}"
+
+    if ajax:
+        return _toast(_domain_card(request, record), kind, message)
+    messages.add_message(
+        request, messages.SUCCESS if kind == "success" else messages.ERROR, message
+    )
     return redirect("email-domains")
 
 
@@ -120,6 +176,8 @@ def domain_verify(request, pk):
         return redirect("dashboard")
 
     record = get_object_or_404(_scoped(EmailDomain.objects, request, account), pk=pk)
+    ajax = is_ajax(request)
+    kind, message = "success", f"{record.domain} verified."
     try:
         dkim = IRedMailClient().get_dkim(record.domain) or {}
         if dkim.get("dkim_txt"):
@@ -130,11 +188,16 @@ def domain_verify(request, pk):
             record.save(update_fields=[
                 "dkim_public_key", "dkim_ok", "status", "verified_at",
             ])
-            messages.success(request, f"{record.domain} verified.")
         else:
-            messages.error(request, "DKIM not found on the mail server yet.")
+            kind, message = "warning", "DKIM not found on the mail server yet."
     except IRedMailError as exc:
-        messages.error(request, f"Verification failed: {exc}")
+        kind, message = "danger", f"Verification failed: {exc}"
+
+    if ajax:
+        return _toast(_domain_card(request, record), kind, message)
+    messages.add_message(
+        request, messages.SUCCESS if kind == "success" else messages.ERROR, message
+    )
     return redirect("email-domains")
 
 
@@ -147,15 +210,22 @@ def domain_toggle(request, pk):
         return redirect("dashboard")
 
     record = get_object_or_404(_scoped(EmailDomain.objects, request, account), pk=pk)
+    ajax = is_ajax(request)
     new_active = not record.is_active
     try:
         IRedMailClient().set_domain_status(record.domain, new_active)
         record.is_active = new_active
         record.save(update_fields=["is_active"])
-        state = "enabled" if new_active else "disabled"
-        messages.success(request, f"{record.domain} {state}.")
+        kind = "success"
+        message = f"{record.domain} {'enabled' if new_active else 'disabled'}."
     except IRedMailError as exc:
-        messages.error(request, f"Could not update {record.domain}: {exc}")
+        kind, message = "danger", f"Could not update {record.domain}: {exc}"
+
+    if ajax:
+        return _toast(_domain_card(request, record), kind, message)
+    messages.add_message(
+        request, messages.SUCCESS if kind == "success" else messages.ERROR, message
+    )
     return redirect("email-domains")
 
 
@@ -168,13 +238,20 @@ def domain_delete(request, pk):
         return redirect("dashboard")
 
     record = get_object_or_404(_scoped(EmailDomain.objects, request, account), pk=pk)
+    ajax = is_ajax(request)
     try:
         IRedMailClient().delete_domain(record.domain)
     except IRedMailError as exc:
-        messages.error(request, f"Could not delete {record.domain}: {exc}")
+        msg = f"Could not delete {record.domain}: {exc}"
+        if ajax:
+            return _ajax_error(msg)
+        messages.error(request, msg)
         return redirect("email-domains")
     domain_name = record.domain
     record.delete()
+    if ajax:
+        from django.http import HttpResponse
+        return _toast(HttpResponse(""), "success", f"{domain_name} deleted.")
     messages.success(request, f"{domain_name} deleted.")
     return redirect("email-domains")
 
@@ -189,6 +266,47 @@ def key_create(request):
     EmailApiKey.objects.create(account=account, name="default")
     messages.success(request, "New API key generated.")
     return redirect("email-domains")
+
+
+# --- Insights: delivery logs + open/click analytics ---------------------------
+
+@login_required
+def insights(request):
+    from apps.billing.limits import LimitChecker
+
+    admin = _is_admin(request)
+    account = get_current_account(request)
+    if account is None and not admin:
+        return redirect("dashboard")
+
+    has_analytics = admin or (account and LimitChecker(account).has_feature("detailed_analytics"))
+    domains = list(
+        _scoped(EmailDomain.objects, request, account).filter(
+            status=EmailDomain.Status.VERIFIED
+        )
+    )
+    domain_names = [d.domain for d in domains]
+    selected = request.GET.get("domain") or (domain_names[0] if domain_names else "")
+
+    logs, stats, error = [], [], None
+    if has_analytics and selected and selected in domain_names:
+        try:
+            client = IRedMailClient()
+            logs = client.domain_logs(selected, limit=100) or []
+            stats = client.domain_stats(selected) or []
+        except IRedMailError as exc:
+            error = str(exc)
+
+    return render(request, "email/insights.html", {
+        "account": account,
+        "is_admin": admin,
+        "has_analytics": has_analytics,
+        "domains": domains,
+        "selected": selected,
+        "logs": logs,
+        "stats": stats,
+        "error": error,
+    })
 
 
 # --- Mailboxes & aliases ------------------------------------------------------
@@ -222,6 +340,7 @@ def mailbox_create(request):
     if current is None and not admin:
         return redirect("dashboard")
 
+    ajax = is_ajax(request)
     email = (request.POST.get("email") or "").strip().lower()
     password = request.POST.get("password") or ""
     name = (request.POST.get("name") or "").strip()
@@ -230,38 +349,49 @@ def mailbox_create(request):
     except ValueError:
         quota_mb = 1024
 
-    if not email or not password:
-        messages.error(request, "Email and password are required.")
+    def fail(msg):
+        if ajax:
+            return _ajax_error(msg)
+        messages.error(request, msg)
         return redirect("email-mailboxes")
+
+    if not email or not password:
+        return fail("Email and password are required.")
 
     domain_part = email.rsplit("@", 1)[-1]
     domain = _scoped(EmailDomain.objects, request, current).filter(
         domain=domain_part, status=EmailDomain.Status.VERIFIED
     ).first()
     if domain is None:
-        messages.error(request, f"'{domain_part}' is not a verified sending domain.")
-        return redirect("email-mailboxes")
+        return fail(f"'{domain_part}' is not a verified sending domain.")
 
     # The mailbox belongs to whichever tenant owns the domain.
     account = domain.account
 
     if Mailbox.objects.filter(email=email).exists():
-        messages.error(request, "That mailbox already exists.")
-        return redirect("email-mailboxes")
+        return fail("That mailbox already exists.")
 
+    note = ""
     if not admin:
         from apps.billing.limits import LimitChecker, PlanLimitExceeded
+        lc = LimitChecker(account)
         try:
-            LimitChecker(account).check_mailbox()
+            lc.check_mailbox()
         except PlanLimitExceeded as exc:
-            messages.error(request, str(exc))
-            return redirect("email-mailboxes")
+            return fail(str(exc))
+        cap = lc.mailbox_storage_cap_mb()
+        if cap and quota_mb > cap:
+            quota_mb = cap
+            note = f" (storage capped at {cap} MB by your plan)"
 
     mb = Mailbox.objects.create(
         account=account, domain=domain, email=email, name=name, quota_mb=quota_mb
     )
     transaction.on_commit(lambda: provision_mailbox.delay(mb.id, password))
-    messages.success(request, f"Provisioning {email}…")
+    msg = f"Provisioning {email}{note}…"
+    if ajax:
+        return _toast(_mailbox_row(request, mb), "success", msg)
+    messages.success(request, msg)
     return redirect("email-mailboxes")
 
 
@@ -274,12 +404,20 @@ def mailbox_delete(request, pk):
         return redirect("dashboard")
 
     mb = get_object_or_404(_scoped(Mailbox.objects, request, account), pk=pk)
+    ajax = is_ajax(request)
+    email = mb.email
     try:
         IRedMailClient().delete_mailbox(mb.email)
         mb.delete()
-        messages.success(request, "Mailbox deleted.")
     except IRedMailError as exc:
+        if ajax:
+            return _ajax_error(f"Delete failed: {exc}")
         messages.error(request, f"Delete failed: {exc}")
+        return redirect("email-mailboxes")
+    if ajax:
+        from django.http import HttpResponse
+        return _toast(HttpResponse(""), "success", f"{email} deleted.")
+    messages.success(request, "Mailbox deleted.")
     return redirect("email-mailboxes")
 
 
@@ -292,15 +430,24 @@ def mailbox_password(request, pk):
         return redirect("dashboard")
 
     mb = get_object_or_404(_scoped(Mailbox.objects, request, account), pk=pk)
+    ajax = is_ajax(request)
     password = request.POST.get("password") or ""
     if not password:
+        if ajax:
+            return _ajax_error("Password is required.")
         messages.error(request, "Password is required.")
         return redirect("email-mailboxes")
     try:
         IRedMailClient().change_password(mb.email, password)
-        messages.success(request, f"Password updated for {mb.email}.")
     except IRedMailError as exc:
+        if ajax:
+            return _ajax_error(f"Password change failed: {exc}")
         messages.error(request, f"Password change failed: {exc}")
+        return redirect("email-mailboxes")
+    if ajax:
+        from django.http import HttpResponse
+        return _toast(HttpResponse(""), "success", f"Password updated for {mb.email}.")
+    messages.success(request, f"Password updated for {mb.email}.")
     return redirect("email-mailboxes")
 
 
@@ -313,18 +460,34 @@ def mailbox_quota(request, pk):
         return redirect("dashboard")
 
     mb = get_object_or_404(_scoped(Mailbox.objects, request, account), pk=pk)
+    ajax = is_ajax(request)
     try:
         quota_mb = int(request.POST.get("quota_mb") or mb.quota_mb)
     except ValueError:
+        if ajax:
+            return _ajax_error("Quota must be a number (MB).")
         messages.error(request, "Quota must be a number (MB).")
         return redirect("email-mailboxes")
+    # Tenants are capped by their plan's per-mailbox storage; admins are not.
+    note = ""
+    if not admin:
+        from apps.billing.limits import LimitChecker
+        cap = LimitChecker(mb.account).mailbox_storage_cap_mb()
+        if cap and quota_mb > cap:
+            quota_mb = cap
+            note = f" (capped at {cap} MB by plan)"
     try:
         IRedMailClient().update_quota(mb.email, quota_mb)
         mb.quota_mb = quota_mb
         mb.save(update_fields=["quota_mb"])
-        messages.success(request, f"Quota updated for {mb.email}.")
     except IRedMailError as exc:
+        if ajax:
+            return _ajax_error(f"Quota update failed: {exc}")
         messages.error(request, f"Quota update failed: {exc}")
+        return redirect("email-mailboxes")
+    if ajax:
+        return _toast(_mailbox_row(request, mb), "success", f"Quota updated for {mb.email}{note}.")
+    messages.success(request, f"Quota updated for {mb.email}{note}.")
     return redirect("email-mailboxes")
 
 
@@ -336,28 +499,45 @@ def alias_create(request):
     if current is None and not admin:
         return redirect("dashboard")
 
+    ajax = is_ajax(request)
     address = (request.POST.get("address") or "").strip().lower()
     goto = (request.POST.get("goto") or "").strip().lower()
-    if not address or not goto:
-        messages.error(request, "Both the alias and forwarding address are required.")
+
+    def fail(msg):
+        if ajax:
+            return _ajax_error(msg)
+        messages.error(request, msg)
         return redirect("email-mailboxes")
+
+    if not address or not goto:
+        return fail("Both the alias and forwarding address are required.")
 
     domain_part = address.rsplit("@", 1)[-1]
     domain = _scoped(EmailDomain.objects, request, current).filter(
         domain=domain_part, status=EmailDomain.Status.VERIFIED
     ).first()
     if domain is None:
-        messages.error(request, f"'{domain_part}' is not a verified sending domain.")
-        return redirect("email-mailboxes")
+        return fail(f"'{domain_part}' is not a verified sending domain.")
+
+    if not admin:
+        from apps.billing.limits import LimitChecker, PlanLimitExceeded
+        try:
+            LimitChecker(domain.account).check_alias()
+        except PlanLimitExceeded as exc:
+            return fail(str(exc))
 
     try:
         IRedMailClient().add_alias(address, goto)
-        EmailAlias.objects.create(
+        alias = EmailAlias.objects.create(
             account=domain.account, domain=domain, address=address, goto=goto
         )
-        messages.success(request, f"Alias {address} → {goto} created.")
     except IRedMailError as exc:
-        messages.error(request, f"Alias creation failed: {exc}")
+        return fail(f"Alias creation failed: {exc}")
+
+    if ajax:
+        resp = render(request, "email/_alias_row.html", {"a": alias, "is_admin": admin})
+        return _toast(resp, "success", f"Alias {address} → {goto} created.")
+    messages.success(request, f"Alias {address} → {goto} created.")
     return redirect("email-mailboxes")
 
 
@@ -411,8 +591,15 @@ def api_send(request):
         )
 
     from apps.billing.limits import LimitChecker, PlanLimitExceeded
+    lc = LimitChecker(account)
+    # Gate the API + SMTP relay capability by plan.
+    if not lc.has_feature("email_apis"):
+        return JsonResponse(
+            {"error": "Your plan does not include the email API & SMTP relay. Upgrade to send."},
+            status=403,
+        )
     try:
-        LimitChecker(account).check_email()
+        lc.check_email()
     except PlanLimitExceeded as exc:
         return JsonResponse({"error": str(exc)}, status=403)
 

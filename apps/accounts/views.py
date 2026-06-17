@@ -20,6 +20,12 @@ def signup(request):
     if request.user.is_authenticated:
         return redirect("dashboard")
 
+    from apps.core.models import SiteSettings
+    if not SiteSettings.load().signups_enabled:
+        from django.contrib import messages
+        messages.error(request, "Public sign-ups are currently disabled.")
+        return redirect("login")
+
     if request.method == "POST":
         form = SignupForm(request.POST)
         if form.is_valid():
@@ -158,6 +164,7 @@ def dashboard(request):
     bitrix_connection = getattr(account, "bitrix_connection", None)
 
     _steps, onboarding_complete, done_count = _onboarding_state(account)
+    stats = _email_stats(account, subscription)
 
     return render(
         request,
@@ -171,5 +178,55 @@ def dashboard(request):
             "onboarding_complete": onboarding_complete,
             "onboarding_done": done_count,
             "onboarding_total": len(_steps),
+            **stats,
         },
     )
+
+
+def _email_stats(account, subscription):
+    """Real-data dashboard aggregates for an account (no open/click tracking)."""
+    from django.db.models import Count, Q
+    from django.utils import timezone
+
+    from apps.email.models import EmailDomain, EmailMessage, Mailbox
+
+    month_start = timezone.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    msgs = EmailMessage.objects.filter(account=account)
+    month = msgs.filter(created_at__gte=month_start).aggregate(
+        sent=Count("id", filter=Q(status=EmailMessage.Status.SENT)),
+        failed=Count("id", filter=Q(status=EmailMessage.Status.FAILED)),
+        queued=Count("id", filter=Q(status=EmailMessage.Status.QUEUED)),
+    )
+    attempted = month["sent"] + month["failed"]
+    success_rate = round(month["sent"] / attempted * 100) if attempted else None
+
+    domains = EmailDomain.objects.filter(account=account).aggregate(
+        total=Count("id"),
+        verified=Count("id", filter=Q(status=EmailDomain.Status.VERIFIED)),
+    )
+    mailboxes = Mailbox.objects.filter(account=account).aggregate(
+        total=Count("id"),
+        active=Count("id", filter=Q(status=Mailbox.Status.ACTIVE)),
+    )
+
+    emails_used = month["sent"] + month["failed"] + month["queued"]
+    email_quota = getattr(getattr(subscription, "plan", None), "max_emails_per_month", None)
+    usage_pct = None
+    if email_quota and email_quota > 0:
+        usage_pct = min(round(emails_used / email_quota * 100), 100)
+
+    return {
+        "sent_month": month["sent"],
+        "failed_month": month["failed"],
+        "success_rate_display": f"{success_rate}%" if success_rate is not None else "—",
+        "failed_sub": f"{month['failed']} failed this month",
+        "domains_verified": domains["verified"],
+        "domains_sub": f"of {domains['total']} total",
+        "mailboxes_active": mailboxes["active"],
+        "mailboxes_sub": f"of {mailboxes['total']} total",
+        "emails_used": emails_used,
+        "email_quota": email_quota,
+        "usage_pct": usage_pct,
+        "recent_sends": list(msgs.order_by("-created_at")[:6]),
+    }

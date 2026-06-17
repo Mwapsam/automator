@@ -1,0 +1,157 @@
+@import "tailwindcss";
+
+/* Scan templates, app python (for class strings) and our JS for utility usage.
+   Paths are relative to this file (project_root/assets/). */
+@source "../templates";
+@source "../apps";
+@source "../static/js";
+
+/* ---------------------------------------------------------------------------
+   Design tokens
+   Tailwind v4 keeps its default palette/scales; we ADD brand + semantic tokens
+   and a self-hosted font. Everything below is consumable as utilities
+   (bg-brand-600, rounded-xl, shadow-card …) and as CSS variables.
+--------------------------------------------------------------------------- */
+@theme {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  /* Brand ramp (primary). Aligned to a refined blue for cohesion. */
+  --color-brand-50: #eff5ff;
+  --color-brand-100: #dbe8fe;
+  --color-brand-200: #bfd7fe;
+  --color-brand-300: #93bbfd;
+  --color-brand-400: #609afa;
+  --color-brand-500: #3b82f6;
+  --color-brand-600: #2563eb;
+  --color-brand-700: #1d4ed8;
+  --color-brand-800: #1e40af;
+  --color-brand-900: #1e3a8a;
+  --color-brand-950: #172554;
+
+  /* Semantic surface/border/text tokens (light theme). */
+  --color-surface: #ffffff;
+  --color-surface-muted: #f9fafb;
+  --color-canvas: #f6f7f9;
+  --color-border: #e5e7eb;
+  --color-border-strong: #d1d5db;
+
+  /* Elevation. */
+  --shadow-card: 0 1px 2px 0 rgb(16 24 40 / 0.04), 0 1px 3px 0 rgb(16 24 40 / 0.06);
+  --shadow-pop: 0 4px 6px -2px rgb(16 24 40 / 0.05), 0 12px 16px -4px rgb(16 24 40 / 0.1);
+  --shadow-modal: 0 8px 8px -4px rgb(16 24 40 / 0.04), 0 20px 24px -4px rgb(16 24 40 / 0.12);
+
+  /* Z-index layers. */
+  --z-dropdown: 1000;
+  --z-sticky: 1020;
+  --z-drawer: 1040;
+  --z-modal: 1050;
+  --z-toast: 1080;
+
+  /* Motion. */
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Self-hosted variable font — swap to avoid invisible text / CLS. */
+@font-face {
+  font-family: "Inter Variable";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/static/fonts/inter-variable.woff2") format("woff2");
+}
+
+/* ---------------------------------------------------------------------------
+   Base
+--------------------------------------------------------------------------- */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    font-feature-settings: "cv11", "ss01";
+  }
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--color-canvas);
+    color: var(--color-gray-900);
+  }
+  /* Visible, consistent focus ring for keyboard users (WCAG 2.2). */
+  :focus-visible {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  [x-cloak] { display: none !important; }
+}
+
+/* ---------------------------------------------------------------------------
+   Components
+--------------------------------------------------------------------------- */
+@layer components {
+  /* Buttons ------------------------------------------------------------- */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5
+      text-sm font-medium transition-colors select-none
+      disabled:opacity-60 disabled:pointer-events-none;
+  }
+  .btn-sm { @apply px-3 py-1.5 text-xs rounded-lg; }
+  .btn-lg { @apply px-5 py-3 text-base; }
+  .btn-block { @apply w-full; }
+  .btn-primary { @apply bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-800; }
+  .btn-secondary { @apply bg-white text-gray-700 border border-border-strong hover:bg-gray-50; }
+  .btn-ghost { @apply text-gray-600 hover:bg-gray-100 hover:text-gray-900; }
+  .btn-danger { @apply bg-red-600 text-white hover:bg-red-700 active:bg-red-800; }
+  .btn-danger-ghost { @apply text-red-600 hover:bg-red-50; }
+
+  /* Surfaces ------------------------------------------------------------ */
+  .card { @apply bg-surface border border-border rounded-2xl shadow-card; }
+  .card-pad { @apply p-5 sm:p-6; }
+
+  /* Badges -------------------------------------------------------------- */
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5
+      text-xs font-medium;
+  }
+  .badge-neutral { @apply bg-gray-100 text-gray-600; }
+  .badge-brand { @apply bg-brand-50 text-brand-700; }
+  .badge-success { @apply bg-green-50 text-green-700; }
+  .badge-warning { @apply bg-amber-50 text-amber-700; }
+  .badge-danger { @apply bg-red-50 text-red-700; }
+  .badge-info { @apply bg-blue-50 text-blue-700; }
+
+  /* Forms --------------------------------------------------------------- */
+  .label { @apply block text-sm font-medium text-gray-700 mb-1.5; }
+  .input {
+    @apply w-full rounded-xl border border-border-strong bg-white px-3.5 py-2.5
+      text-sm text-gray-900 placeholder:text-gray-400
+      focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500;
+  }
+  .input-error { @apply border-red-400 bg-red-50 focus:ring-red-500 focus:border-red-500; }
+  .help { @apply text-xs text-gray-400 mt-1; }
+  .field-error { @apply text-xs text-red-600 mt-1; }
+
+  /* Tables -------------------------------------------------------------- */
+  .table-wrap {
+    @apply bg-surface border border-border rounded-2xl shadow-card overflow-hidden;
+  }
+  .table { @apply w-full text-sm; }
+  .table thead { @apply bg-surface-muted text-gray-500 text-left; }
+  .table th { @apply px-4 py-3 font-medium whitespace-nowrap; }
+  .table tbody { @apply divide-y divide-gray-100; }
+  .table td { @apply px-4 py-3 align-middle; }
+
+  /* Skeleton ------------------------------------------------------------ */
+  .skeleton { @apply animate-pulse rounded-md bg-gray-200/70; }
+
+  /* App shell nav ------------------------------------------------------- */
+  .nav-link {
+    @apply flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium
+      text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors;
+  }
+  .nav-link-active { @apply bg-brand-50 text-brand-700 hover:bg-brand-50 hover:text-brand-700; }
+
+  /* Copy field ---------------------------------------------------------- */
+  .copy-value {
+    @apply flex-1 font-mono text-xs bg-surface-muted border border-border
+      rounded-lg px-3 py-2 break-all;
+  }
+}

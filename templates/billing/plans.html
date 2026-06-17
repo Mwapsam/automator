@@ -7,6 +7,32 @@
   <p class="text-sm text-gray-400 mt-1">All paid plans billed monthly · cancel anytime</p>
 </div>
 
+{% if is_admin %}
+<div x-data="{ create: false }" class="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-brand-200 bg-brand-50 px-5 py-3">
+  <p class="text-sm text-brand-700">Admin — manage packages below. Inactive packages are hidden from customers.</p>
+  <button class="btn btn-primary btn-sm" @click="create = true">
+    {% include "components/icon.html" with name="plus" class="w-4 h-4" %} Add package
+  </button>
+
+  <div x-show="create" x-cloak class="fixed inset-0 flex items-center justify-center p-4"
+       style="z-index: var(--z-modal)" @keydown.escape.window="create = false" role="dialog" aria-modal="true">
+    <div class="absolute inset-0 bg-gray-900/40" @click="create = false"></div>
+    <div class="card shadow-modal w-full max-w-lg p-6 relative max-h-[90vh] overflow-y-auto text-left" x-trap.noscroll="create">
+      <h2 class="font-semibold mb-4">New package</h2>
+      <form method="post" action="{% url 'billing:plan-create' %}" class="space-y-3">
+        {% csrf_token %}
+        {% include "components/form_field.html" with name="slug" label="Slug (unique, lowercase)" required=True %}
+        {% include "billing/_plan_fields.html" %}
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" class="btn btn-secondary btn-sm" @click="create = false">Cancel</button>
+          <button class="btn btn-primary btn-sm" type="submit">Create package</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <!-- Current plan + usage -->
 {% if subscription %}
   <div class="bg-white border border-gray-200 rounded-2xl p-6 mb-8">
@@ -48,8 +74,9 @@
 <!-- Pricing grid -->
 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
   {% for plan in plans %}
-    <div class="bg-white rounded-2xl border
+    <div x-data="{ edit: false }" class="bg-white rounded-2xl border
                 {% if plan.slug == 'professional' %}border-blue-500 ring-2 ring-blue-500 relative mt-3{% else %}border-gray-200{% endif %}
+                {% if is_admin and not plan.is_active %}opacity-60{% endif %}
                 shadow-sm p-6 flex flex-col">
 
       {% if plan.slug == 'professional' %}
@@ -62,7 +89,10 @@
 
       <!-- Price -->
       <div class="mb-5">
-        <p class="text-base font-semibold text-gray-900">{{ plan.name }}</p>
+        <p class="text-base font-semibold text-gray-900">
+          {{ plan.name }}
+          {% if is_admin and not plan.is_active %}<span class="badge badge-neutral align-middle">Inactive</span>{% endif %}
+        </p>
         <div class="mt-1 flex items-end gap-1">
           <span class="text-3xl font-bold text-gray-900">${{ plan.price_monthly|floatformat:0 }}</span>
           {% if plan.price_monthly > 0 %}<span class="text-sm text-gray-400 mb-0.5">/mo</span>{% endif %}
@@ -72,9 +102,10 @@
         {% endif %}
       </div>
 
-      <!-- Features -->
+      <!-- Features (only modules that are enabled appear) -->
       <ul class="space-y-2 text-sm text-gray-600 flex-1 mb-6">
         {% spaceless %}
+        {% if WHATSAPP_ENABLED %}
         <li class="flex items-start gap-2">
           <svg class="w-4 h-4 text-green-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
           {% if plan.max_whatsapp_numbers == -1 %}Unlimited WhatsApp numbers
@@ -85,6 +116,7 @@
           {% if plan.max_conversations_per_month == -1 %}Unlimited conversations
           {% else %}{{ plan.max_conversations_per_month }} conversations/mo{% endif %}
         </li>
+        {% endif %}
         <li class="flex items-start gap-2">
           <svg class="w-4 h-4 text-green-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
           {% if plan.max_emails_per_month == -1 %}Unlimited emails
@@ -92,9 +124,60 @@
         </li>
         <li class="flex items-start gap-2">
           <svg class="w-4 h-4 text-green-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+          {% if plan.max_mailboxes == -1 %}Unlimited mailboxes
+          {% else %}{{ plan.max_mailboxes }} mailbox{{ plan.max_mailboxes|pluralize }} included{% endif %}
+        </li>
+        <li class="flex items-start gap-2">
+          <svg class="w-4 h-4 text-green-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+          {{ plan.mailbox_storage_gb }} GB storage per mailbox
+        </li>
+        <li class="flex items-start gap-2">
+          <svg class="w-4 h-4 text-green-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+          {% if plan.max_forwarding_rules == -1 %}Unlimited forwarding rules
+          {% else %}{{ plan.max_forwarding_rules }} forwarding rule{{ plan.max_forwarding_rules|pluralize }}{% endif %}
+        </li>
+        <li class="flex items-start gap-2">
+          <svg class="w-4 h-4 text-green-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+          {% if plan.max_aliases == -1 %}Unlimited email aliases
+          {% else %}{{ plan.max_aliases }} email alias{{ plan.max_aliases|pluralize:"es" }}{% endif %}
+        </li>
+        {% if plan.email_apis %}
+        <li class="flex items-start gap-2">
+          <svg class="w-4 h-4 text-green-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+          RESTful email APIs &amp; SMTP relay
+        </li>
+        {% endif %}
+        {% if plan.inbound_email %}
+        <li class="flex items-start gap-2">
+          <svg class="w-4 h-4 text-green-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+          Inbound email processing
+        </li>
+        {% endif %}
+        {% if plan.tracking_webhooks %}
+        <li class="flex items-start gap-2">
+          <svg class="w-4 h-4 text-green-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+          Tracking, analytics &amp; webhooks
+        </li>
+        {% endif %}
+        {% if plan.detailed_analytics %}
+        <li class="flex items-start gap-2">
+          <svg class="w-4 h-4 text-green-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+          Detailed analytics &amp; insights
+        </li>
+        {% endif %}
+        {% if plan.log_retention_days %}
+        <li class="flex items-start gap-2">
+          <svg class="w-4 h-4 text-green-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+          {{ plan.log_retention_days }} day{{ plan.log_retention_days|pluralize }} log retention
+        </li>
+        {% endif %}
+        {% if WHATSAPP_ENABLED or BITRIX_ENABLED %}
+        <li class="flex items-start gap-2">
+          <svg class="w-4 h-4 text-green-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
           {% if plan.max_automation_rules == -1 %}Unlimited automation rules
           {% else %}{{ plan.max_automation_rules }} automation rule{{ plan.max_automation_rules|pluralize }}{% endif %}
         </li>
+        {% endif %}
         {% if plan.has_priority_support %}
           <li class="flex items-start gap-2">
             <svg class="w-4 h-4 text-green-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
@@ -120,6 +203,42 @@
                   text-white text-sm font-medium py-2.5 rounded-xl transition-colors">
           {% if subscription and subscription.plan.price_monthly < plan.price_monthly %}Upgrade to {{ plan.name }}{% else %}Choose {{ plan.name }}{% endif %}
         </a>
+      {% endif %}
+
+      {% if is_admin %}
+      <div class="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between gap-2">
+        <button type="button" class="btn btn-ghost btn-sm" @click="edit = true">Edit</button>
+        <div class="flex items-center gap-1">
+          <form method="post" action="{% url 'billing:plan-toggle' plan.pk %}">
+            {% csrf_token %}
+            <button class="btn btn-ghost btn-sm" type="submit">{% if plan.is_active %}Deactivate{% else %}Activate{% endif %}</button>
+          </form>
+          <form method="post" action="{% url 'billing:plan-delete' plan.pk %}"
+                onsubmit="return confirm('Delete package {{ plan.name|escapejs }}? This cannot be undone.');">
+            {% csrf_token %}
+            <button class="btn btn-danger-ghost btn-sm" type="submit" aria-label="Delete {{ plan.name }}">
+              {% include "components/icon.html" with name="trash" class="w-4 h-4" %}
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <div x-show="edit" x-cloak class="fixed inset-0 flex items-center justify-center p-4"
+           style="z-index: var(--z-modal)" @keydown.escape.window="edit = false" role="dialog" aria-modal="true">
+        <div class="absolute inset-0 bg-gray-900/40" @click="edit = false"></div>
+        <div class="card shadow-modal w-full max-w-lg p-6 relative max-h-[90vh] overflow-y-auto text-left" x-trap.noscroll="edit">
+          <h2 class="font-semibold mb-1">Edit {{ plan.name }}</h2>
+          <p class="text-xs text-gray-400 mb-4">Slug <code>{{ plan.slug }}</code> is immutable.</p>
+          <form method="post" action="{% url 'billing:plan-edit' plan.pk %}" class="space-y-3">
+            {% csrf_token %}
+            {% include "billing/_plan_fields.html" %}
+            <div class="flex justify-end gap-2 pt-2">
+              <button type="button" class="btn btn-secondary btn-sm" @click="edit = false">Cancel</button>
+              <button class="btn btn-primary btn-sm" type="submit">Save</button>
+            </div>
+          </form>
+        </div>
+      </div>
       {% endif %}
 
     </div>

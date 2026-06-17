@@ -1,3 +1,4 @@
+import re
 import secrets
 
 from django.db import models
@@ -46,6 +47,21 @@ class EmailDomain(models.Model):
     @property
     def spf_record(self) -> str:
         return "v=spf1 include:%(host)s ~all"
+
+    @property
+    def dkim_txt_value(self) -> str:
+        """The DKIM key as a single DNS-ready TXT value.
+
+        ``amavisd showkeys`` emits BIND format — the record name/TTL/TXT prefix
+        plus the key split across quoted chunks inside parentheses. DNS wants
+        just the concatenated value (``v=DKIM1; p=...``), so pull out the quoted
+        segments and join them; fall back to collapsing whitespace.
+        """
+        raw = self.dkim_public_key or ""
+        chunks = re.findall(r'"([^"]*)"', raw)
+        if chunks:
+            return "".join(chunks)
+        return " ".join(raw.split())
 
     @property
     def dkim_record_name(self) -> str:

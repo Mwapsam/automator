@@ -21,22 +21,131 @@ logger = logging.getLogger(__name__)
 
 @login_required
 def pricing_page(request):
+    is_admin = request.user.is_superuser
     account = get_current_account(request)
-    if account is None:
+    if account is None and not is_admin:
         return redirect("/dashboard/")
 
-    plans = list(Plan.objects.filter(is_active=True).order_by("price_monthly"))
-    subscription = getattr(account, "subscription", None)
+    # Admins see every package (incl. inactive) to manage; tenants see only active.
+    plan_qs = Plan.objects.all() if is_admin else Plan.objects.filter(is_active=True)
+    plans = list(plan_qs.order_by("price_monthly"))
+    subscription = getattr(account, "subscription", None) if account else None
     current_plan_slug = subscription.plan.slug if subscription else None
 
     return render(request, "billing/plans.html", {
         "plans": plans,
         "account": account,
+        "is_admin": is_admin,
         "subscription": subscription,
         "current_plan_slug": current_plan_slug,
-        "conversations_used": UsageSummary.get_current_usage(account),
-        "emails_used": UsageSummary.get_current_email_usage(account),
+        "conversations_used": UsageSummary.get_current_usage(account) if account else 0,
+        "emails_used": UsageSummary.get_current_email_usage(account) if account else 0,
     })
+
+
+# --- Admin: package (Plan) management -----------------------------------------
+
+def _plan_form_fields(post):
+    """Pull + coerce Plan fields from POST (shared by create/edit)."""
+    def _int(name, default=0):
+        try:
+            return int(post.get(name, default) or default)
+        except ValueError:
+            return default
+    from decimal import Decimal, InvalidOperation
+    try:
+        price = Decimal(post.get("price_monthly") or "0")
+    except InvalidOperation:
+        price = Decimal("0")
+    return {
+        "name": (post.get("name") or "").strip(),
+        "price_monthly": price,
+        "max_conversations_per_month": _int("max_conversations_per_month"),
+        "max_emails_per_month": _int("max_emails_per_month"),
+        "max_mailboxes": _int("max_mailboxes"),
+        "mailbox_storage_gb": _int("mailbox_storage_gb"),
+        "max_forwarding_rules": _int("max_forwarding_rules"),
+        "max_aliases": _int("max_aliases"),
+        "max_automation_rules": _int("max_automation_rules"),
+        "max_whatsapp_numbers": _int("max_whatsapp_numbers"),
+        "trial_days": _int("trial_days"),
+        "log_retention_days": _int("log_retention_days"),
+        "flutterwave_plan_id": (post.get("flutterwave_plan_id") or "").strip() or None,
+        "has_priority_support": "has_priority_support" in post,
+        "email_apis": "email_apis" in post,
+        "inbound_email": "inbound_email" in post,
+        "tracking_webhooks": "tracking_webhooks" in post,
+        "detailed_analytics": "detailed_analytics" in post,
+        "is_active": "is_active" in post,
+    }
+
+
+@login_required
+@require_POST
+def plan_create(request):
+    if not request.user.is_superuser:
+        return redirect("/billing/plans/")
+    from django.utils.text import slugify
+    fields = _plan_form_fields(request.POST)
+    slug = slugify(request.POST.get("slug") or fields["name"])
+    if not slug or not fields["name"]:
+        messages.error(request, "Package name (and slug) are required.")
+        return redirect("billing:plans")
+    if Plan.objects.filter(slug=slug).exists():
+        messages.error(request, f"A package with slug '{slug}' already exists.")
+        return redirect("billing:plans")
+    Plan.objects.create(slug=slug, **fields)
+    messages.success(request, f"Package '{fields['name']}' created.")
+    return redirect("billing:plans")
+
+
+@login_required
+@require_POST
+def plan_edit(request, pk):
+    if not request.user.is_superuser:
+        return redirect("/billing/plans/")
+    plan = get_object_or_404(Plan, pk=pk)
+    fields = _plan_form_fields(request.POST)
+    if not fields["name"]:
+        messages.error(request, "Package name is required.")
+        return redirect("billing:plans")
+    for k, v in fields.items():
+        setattr(plan, k, v)
+    plan.save()
+    messages.success(request, f"Package '{plan.name}' updated.")
+    return redirect("billing:plans")
+
+
+@login_required
+@require_POST
+def plan_toggle(request, pk):
+    if not request.user.is_superuser:
+        return redirect("/billing/plans/")
+    plan = get_object_or_404(Plan, pk=pk)
+    plan.is_active = not plan.is_active
+    plan.save(update_fields=["is_active"])
+    messages.success(
+        request, f"Package '{plan.name}' {'activated' if plan.is_active else 'deactivated'}."
+    )
+    return redirect("billing:plans")
+
+
+@login_required
+@require_POST
+def plan_delete(request, pk):
+    if not request.user.is_superuser:
+        return redirect("/billing/plans/")
+    plan = get_object_or_404(Plan, pk=pk)
+    if plan.subscriptions.exists():
+        messages.error(
+            request,
+            f"Can't delete '{plan.name}' — customers are subscribed. Deactivate it instead.",
+        )
+        return redirect("billing:plans")
+    name = plan.name
+    plan.delete()
+    messages.success(request, f"Package '{name}' deleted.")
+    return redirect("billing:plans")
 
 
 @login_required
