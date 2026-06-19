@@ -213,6 +213,10 @@ IREDMAIL_API_BASE = os.getenv("IREDMAIL_API_BASE", "")
 IREDMAIL_ADMIN_USER = os.getenv("IREDMAIL_ADMIN_USER", "")
 IREDMAIL_ADMIN_PASSWORD = os.getenv("IREDMAIL_ADMIN_PASSWORD", "")
 
+# Progstack domain-ownership verification API. The API token is per-account
+# (stored on Account.progstack_token); only the base URL is global.
+PROGSTACK_API_BASE = os.getenv("PROGSTACK_API_BASE", "https://api.progstack.org")
+
 # SMTP relay credentials (the iRedMail host) used to actually send mail.
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = os.getenv("EMAIL_HOST", "")

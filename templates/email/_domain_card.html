@@ -40,22 +40,84 @@ AJAX create/verify/toggle. Needs: d, is_admin, mail_host.{% endcomment %}
     </div>
   </div>
 
-  <div class="mt-4 grid gap-3 text-xs">
-    <div>
-      <p class="text-gray-500 mb-1">DKIM — TXT record name</p>
-      {% include "components/copy_field.html" with value=d.dkim_record_name label="Copy" %}
-    </div>
-    <div>
-      <p class="text-gray-500 mb-1">DKIM — TXT value</p>
-      {% include "components/copy_field.html" with value=d.dkim_txt_value|default:"(pending provisioning)" label="Copy" %}
-    </div>
-    <div>
-      <p class="text-gray-500 mb-1">SPF — TXT at <code>{{ d.domain }}</code></p>
-      {% include "components/copy_field.html" with value="v=spf1 include:"|add:mail_host|add:" ~all" label="Copy" %}
-    </div>
-    <div>
-      <p class="text-gray-500 mb-1">DMARC — TXT at <code>{{ d.dmarc_record_name }}</code></p>
-      {% include "components/copy_field.html" with value="v=DMARC1; p=none; rua=mailto:dmarc@"|add:d.domain label="Copy" %}
+  <div class="mt-4">
+    <p class="text-xs font-medium text-gray-500 mb-2">DNS records — add these at your DNS provider</p>
+    <div class="grid gap-3">
+      {# Ownership verification (Progstack) #}
+      {% if d.verify_record_value %}
+      <div class="rounded-xl border border-brand-200 bg-brand-50/50 p-3">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="badge badge-neutral">TXT</span>
+          <span class="text-xs font-medium text-gray-700">Domain verification</span>
+        </div>
+        <dl class="grid gap-2 text-xs">
+          {% if d.verify_record_name %}
+          <div class="grid grid-cols-[4rem,1fr] items-center gap-2">
+            <dt class="text-gray-500">Name</dt>
+            <dd class="min-w-0">{% include "components/copy_field.html" with value=d.verify_record_name label="Copy" %}</dd>
+          </div>
+          {% endif %}
+          <div class="grid grid-cols-[4rem,1fr] items-center gap-2">
+            <dt class="text-gray-500">Value</dt>
+            <dd class="min-w-0">{% include "components/copy_field.html" with value=d.verify_record_value label="Copy" %}</dd>
+          </div>
+        </dl>
+      </div>
+      {% endif %}
+
+      {# DKIM #}
+      <div class="rounded-xl border border-border bg-gray-50/50 p-3">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="badge badge-neutral">TXT</span>
+          <span class="text-xs font-medium text-gray-700">DKIM</span>
+        </div>
+        <dl class="grid gap-2 text-xs">
+          <div class="grid grid-cols-[4rem,1fr] items-center gap-2">
+            <dt class="text-gray-500">Name</dt>
+            <dd class="min-w-0">{% include "components/copy_field.html" with value=d.dkim_record_name label="Copy" %}</dd>
+          </div>
+          <div class="grid grid-cols-[4rem,1fr] items-center gap-2">
+            <dt class="text-gray-500">Value</dt>
+            <dd class="min-w-0">{% include "components/copy_field.html" with value=d.dkim_txt_value|default:"(pending provisioning)" label="Copy" %}</dd>
+          </div>
+        </dl>
+      </div>
+
+      {# SPF #}
+      <div class="rounded-xl border border-border bg-gray-50/50 p-3">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="badge badge-neutral">TXT</span>
+          <span class="text-xs font-medium text-gray-700">SPF</span>
+        </div>
+        <dl class="grid gap-2 text-xs">
+          <div class="grid grid-cols-[4rem,1fr] items-center gap-2">
+            <dt class="text-gray-500">Name</dt>
+            <dd class="min-w-0">{% include "components/copy_field.html" with value=d.domain label="Copy" %}</dd>
+          </div>
+          <div class="grid grid-cols-[4rem,1fr] items-center gap-2">
+            <dt class="text-gray-500">Value</dt>
+            <dd class="min-w-0">{% include "components/copy_field.html" with value="v=spf1 include:"|add:mail_host|add:" ~all" label="Copy" %}</dd>
+          </div>
+        </dl>
+      </div>
+
+      {# DMARC #}
+      <div class="rounded-xl border border-border bg-gray-50/50 p-3">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="badge badge-neutral">TXT</span>
+          <span class="text-xs font-medium text-gray-700">DMARC</span>
+        </div>
+        <dl class="grid gap-2 text-xs">
+          <div class="grid grid-cols-[4rem,1fr] items-center gap-2">
+            <dt class="text-gray-500">Name</dt>
+            <dd class="min-w-0">{% include "components/copy_field.html" with value=d.dmarc_record_name label="Copy" %}</dd>
+          </div>
+          <div class="grid grid-cols-[4rem,1fr] items-center gap-2">
+            <dt class="text-gray-500">Value</dt>
+            <dd class="min-w-0">{% include "components/copy_field.html" with value="v=DMARC1; p=none; rua=mailto:dmarc@"|add:d.domain label="Copy" %}</dd>
+          </div>
+        </dl>
+      </div>
     </div>
   </div>
 </div>

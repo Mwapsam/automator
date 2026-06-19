@@ -50,6 +50,28 @@
 </div>
 {% endif %}
 
+{# Progstack verification token (per-account) #}
+{% if account %}
+<div class="card card-pad mb-6">
+  <h2 class="font-semibold flex items-center gap-2 mb-1">
+    {% include "components/icon.html" with name="check-circle" class="w-4 h-4 text-gray-400" %}
+    Domain verification token
+  </h2>
+  <p class="text-sm text-gray-600 mb-3">Your Progstack API token. Required to generate verification records and verify domains.</p>
+  <form method="post" action="/email/progstack-token/" class="flex flex-wrap gap-3">
+    {% csrf_token %}
+    <label class="sr-only" for="id_progstack_token">Progstack API token</label>
+    <input id="id_progstack_token" name="token" type="text" autocomplete="off"
+           value="{{ account.progstack_token }}" placeholder="progstack_…"
+           class="input flex-1 min-w-[16rem] font-mono text-xs">
+    <button class="btn btn-secondary" type="submit">Save token</button>
+  </form>
+  {% if not account.progstack_token %}
+    <p class="help mt-2 text-amber-600">No token set — add one to verify your domains.</p>
+  {% endif %}
+</div>
+{% endif %}
+
 {# Add domain #}
 <div class="card card-pad mb-6">
   <h2 class="font-semibold mb-4">Add a sending domain</h2>

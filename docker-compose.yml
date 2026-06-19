@@ -29,15 +29,10 @@ services:
 
   web:
     build: .
-    command: >
-      sh -c "python manage.py migrate --noinput &&
-             python manage.py collectstatic --noinput &&
-             gunicorn automator.wsgi:application
-               --bind 0.0.0.0:8000
-               --workers ${GUNICORN_WORKERS:-3}
-               --timeout ${GUNICORN_TIMEOUT:-60}
-               --access-logfile - --error-logfile -"
+    command: sh /app/docker/entrypoint.sh
     restart: unless-stopped
+    extra_hosts:
+      - "api.progstack.org:18.132.207.43"
     ports:
       - "8000:8000"
     env_file:
@@ -49,7 +44,8 @@ services:
 
   celery_worker:
     build: .
-    command: celery -A automator worker -l info
+    # command: celery -A automator worker -l info -Q celery,email,whatsapp,outbound,bitrix
+    command: celery -A automator worker -l info -Q celery,email,outbound
     restart: unless-stopped
     volumes:
       - .:/app

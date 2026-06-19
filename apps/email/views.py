@@ -13,6 +13,7 @@ from django.views.decorators.http import require_POST
 from apps.accounts.models import Account
 from apps.accounts.utils import get_current_account
 from apps.email.iredmail import IRedMailClient, IRedMailError
+from apps.email.progstack import ProgstackClient, ProgstackError
 from apps.email.models import (
     EmailAlias,
     EmailApiKey,
@@ -159,6 +160,14 @@ def domain_create(request):
         logger.error("domain_create: mail server error for %s: %s", domain, exc)
         kind, message = "danger", f"Provisioning failed: {exc}"
 
+    # Fetch the Progstack ownership-verification TXT record so the customer can
+    # add it alongside DKIM/SPF/DMARC. Best-effort: a missing token or API error
+    # shouldn't fail provisioning — they can set the token and re-verify later.
+    if kind != "danger":
+        ok, note = _generate_verify_record(record)
+        if not ok and note:
+            message = f"{message} {note}"
+
     if ajax:
         return _toast(_domain_card(request, record), kind, message)
     messages.add_message(
@@ -177,20 +186,31 @@ def domain_verify(request, pk):
 
     record = get_object_or_404(_scoped(EmailDomain.objects, request, account), pk=pk)
     ajax = is_ajax(request)
+
+    # No verification record yet (e.g. token was added after provisioning) —
+    # generate it now so the customer has a TXT to add, then ask them to retry.
+    if not record.verify_record_value:
+        ok, note = _generate_verify_record(record)
+        kind = "warning" if ok else "danger"
+        message = note or "Add the verification TXT record, then verify."
+        if ajax:
+            return _toast(_domain_card(request, record), kind, message)
+        messages.add_message(
+            request, messages.SUCCESS if kind == "success" else messages.ERROR, message
+        )
+        return redirect("email-domains")
+
     kind, message = "success", f"{record.domain} verified."
     try:
-        dkim = IRedMailClient().get_dkim(record.domain) or {}
-        if dkim.get("dkim_txt"):
-            record.dkim_public_key = dkim["dkim_txt"]
-            record.dkim_ok = True
+        result = ProgstackClient(record.account.progstack_token).check(record.domain)
+        if result["verified"]:
             record.status = EmailDomain.Status.VERIFIED
             record.verified_at = timezone.now()
-            record.save(update_fields=[
-                "dkim_public_key", "dkim_ok", "status", "verified_at",
-            ])
+            record.save(update_fields=["status", "verified_at"])
         else:
-            kind, message = "warning", "DKIM not found on the mail server yet."
-    except IRedMailError as exc:
+            kind = "warning"
+            message = result["message"] or "Verification TXT record not found in DNS yet."
+    except ProgstackError as exc:
         kind, message = "danger", f"Verification failed: {exc}"
 
     if ajax:
@@ -198,6 +218,40 @@ def domain_verify(request, pk):
     messages.add_message(
         request, messages.SUCCESS if kind == "success" else messages.ERROR, message
     )
+    return redirect("email-domains")
+
+
+def _generate_verify_record(record) -> tuple[bool, str]:
+    """Fetch and store the Progstack ownership TXT record for ``record``.
+
+    Returns ``(ok, note)``: ``ok`` is False when no token is configured or the
+    API errors. Never raises — callers fold the note into their toast/message.
+    """
+    if not record.account.progstack_token:
+        return False, "Set this account's Progstack API token to verify domains."
+    try:
+        rec = ProgstackClient(record.account.progstack_token).generate(record.domain)
+    except ProgstackError as exc:
+        logger.error("generate verify record for %s: %s", record.domain, exc)
+        return False, f"Could not generate verification record: {exc}"
+    record.verify_record_name = rec.get("name", "")
+    record.verify_record_value = rec.get("value", "")
+    record.save(update_fields=["verify_record_name", "verify_record_value"])
+    return True, ""
+
+
+@login_required
+@require_POST
+def progstack_token_set(request):
+    account = get_current_account(request)
+    if account is None:
+        return redirect("dashboard")
+    account.progstack_token = (request.POST.get("token") or "").strip()
+    account.save(update_fields=["progstack_token"])
+    if account.progstack_token:
+        messages.success(request, "Progstack API token saved.")
+    else:
+        messages.success(request, "Progstack API token cleared.")
     return redirect("email-domains")
 
 

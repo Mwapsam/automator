@@ -17,6 +17,9 @@ class Account(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # Per-account token for the Progstack domain-verification API.
+    progstack_token = models.CharField(max_length=255, blank=True, default="")
+
     class Meta:
         ordering = ["company_name"]
 

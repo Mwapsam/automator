@@ -27,6 +27,11 @@ class EmailDomain(models.Model):
     dkim_selector = models.CharField(max_length=63, default="dkim")
     dkim_public_key = models.TextField(blank=True, default="")  # DKIM TXT record value
 
+    # Progstack ownership-verification TXT record (from /verify/generate). The
+    # customer adds this to DNS; /verify/check confirms it and verifies the domain.
+    verify_record_name = models.CharField(max_length=255, blank=True, default="")
+    verify_record_value = models.TextField(blank=True, default="")
+
     status = models.CharField(
         max_length=20, choices=Status.choices, default=Status.PENDING
     )
