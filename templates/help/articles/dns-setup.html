@@ -1,0 +1,59 @@
+{% comment %}Body for the "Set up your DNS records" guide.{% endcomment %}
+<p>DNS records tell the world that mail from your domain is genuinely yours. After provisioning a domain, the domain card on the <a href="/email/domains/">Domains</a> page lists every record you need — just copy each one into your DNS provider.</p>
+
+<h2>The records you'll add</h2>
+<table>
+  <thead><tr><th>Record</th><th>Type</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Verification</strong></td><td>TXT</td><td>Proves you own the domain so we can switch it on.</td></tr>
+    <tr><td><strong>DKIM</strong></td><td>TXT</td><td>Cryptographically signs your mail so receivers can trust it wasn't tampered with.</td></tr>
+    <tr><td><strong>SPF</strong></td><td>TXT</td><td>Lists the servers allowed to send for your domain.</td></tr>
+    <tr><td><strong>DMARC</strong></td><td>TXT</td><td>Tells receivers what to do with mail that fails the checks above.</td></tr>
+  </tbody>
+</table>
+<div class="note">Each record has a <strong>Name</strong> (sometimes called Host) and a <strong>Value</strong> (sometimes Content or Data). Use the copy buttons on the domain card so nothing gets mistyped.</div>
+
+<h2>General steps</h2>
+<ol>
+  <li>Sign in to wherever your domain's DNS is managed (your registrar or DNS host).</li>
+  <li>Find the DNS / DNS records / Zone editor section.</li>
+  <li>For each record on the domain card, add a new record with type <strong>TXT</strong>, paste the <strong>Name</strong> and <strong>Value</strong>, and save.</li>
+  <li>Leave TTL at the default (or "Automatic").</li>
+</ol>
+
+<h2>Provider-specific notes</h2>
+
+<h3>Cloudflare</h3>
+<ul>
+  <li>Go to your domain → <strong>DNS</strong> → <strong>Records</strong> → <strong>Add record</strong>.</li>
+  <li>Type <code>TXT</code>, paste Name and Value (Cloudflare calls Value "Content").</li>
+  <li>Set <strong>Proxy status</strong> to <em>DNS only</em> (grey cloud) — TXT records aren't proxied anyway.</li>
+</ul>
+
+<h3>GoDaddy</h3>
+<ul>
+  <li>My Products → your domain → <strong>DNS</strong> → <strong>Add</strong>.</li>
+  <li>For the Name, if the record is for the root domain GoDaddy uses <code>@</code>. Paste only the host part shown (drop the trailing domain) if GoDaddy appends it automatically.</li>
+</ul>
+
+<h3>Namecheap</h3>
+<ul>
+  <li>Domain List → <strong>Manage</strong> → <strong>Advanced DNS</strong> → <strong>Add New Record</strong>.</li>
+  <li>Choose <strong>TXT Record</strong>; the <em>Host</em> field is the Name and <em>Value</em> is the Value.</li>
+</ul>
+
+<h3>Google Domains / Squarespace, Route 53, others</h3>
+<ul>
+  <li>Look for "DNS", "Custom records" or "Zone file", then add each <strong>TXT</strong> record with the Name and Value as shown.</li>
+</ul>
+
+<h2>Host name tips</h2>
+<p>Some providers automatically add your domain to the end of the Name. If a record's Name is <code>selector._domainkey.mail.yourcompany.com</code> and your provider already appends <code>mail.yourcompany.com</code>, enter just <code>selector._domainkey</code>. If you're unsure, entering the full name usually still works.</p>
+
+<h2>After you add them</h2>
+<ol>
+  <li>DNS changes take time to spread — usually minutes, occasionally a few hours.</li>
+  <li>Return to <a href="/email/domains/">Domains</a> and click <strong>Check DNS</strong> — each record shows whether it's been found.</li>
+  <li>If it's still pending, just leave the page open; it re-checks automatically every few seconds.</li>
+</ol>
+<p>Records not showing up? See the <a href="{% url 'help-article' 'troubleshooting' %}">troubleshooting guide</a>.</p>

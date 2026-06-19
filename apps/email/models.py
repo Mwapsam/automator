@@ -1,6 +1,7 @@
 import re
 import secrets
 
+from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
@@ -27,8 +28,9 @@ class EmailDomain(models.Model):
     dkim_selector = models.CharField(max_length=63, default="dkim")
     dkim_public_key = models.TextField(blank=True, default="")  # DKIM TXT record value
 
-    # Progstack ownership-verification TXT record (from /verify/generate). The
-    # customer adds this to DNS; /verify/check confirms it and verifies the domain.
+    # Self-hosted ownership-verification TXT record (minted by
+    # ``ensure_verification_token``). The customer adds this to DNS; the live
+    # DNS check (apps.email.dnscheck) confirms it and verifies the domain.
     verify_record_name = models.CharField(max_length=255, blank=True, default="")
     verify_record_value = models.TextField(blank=True, default="")
 
@@ -36,11 +38,15 @@ class EmailDomain(models.Model):
         max_length=20, choices=Status.choices, default=Status.PENDING
     )
     is_active = models.BooleanField(default=True)  # enabled/disabled on the mail server
+    # Per-record DNS readiness, refreshed by the live DNS check. Ownership ("verify")
+    # readiness is tracked by ``status == VERIFIED``.
     spf_ok = models.BooleanField(default=False)
     dkim_ok = models.BooleanField(default=False)
+    dmarc_ok = models.BooleanField(default=False)
 
     created_at = models.DateTimeField(auto_now_add=True)
     verified_at = models.DateTimeField(blank=True, null=True)
+    last_checked_at = models.DateTimeField(blank=True, null=True)
 
     class Meta:
         ordering = ["domain"]
@@ -49,9 +55,70 @@ class EmailDomain(models.Model):
     def is_verified(self) -> bool:
         return self.status == self.Status.VERIFIED
 
+    def ensure_verification_token(self) -> bool:
+        """Generate a self-hosted ownership TXT record if one isn't set yet.
+
+        Returns True if a new record was created. Replaces the old per-account
+        Progstack token flow — ownership is now proven by a TXT record we mint
+        and check via DNS ourselves, so customers never handle an API token.
+        """
+        if self.verify_record_value:
+            return False
+        token = secrets.token_hex(16)
+        self.verify_record_name = self.domain  # root TXT, alongside SPF
+        self.verify_record_value = f"automator-domain-verification={token}"
+        return True
+
     @property
-    def spf_record(self) -> str:
-        return "v=spf1 include:%(host)s ~all"
+    def spf_value(self) -> str:
+        host = settings.EMAIL_HOST or "YOUR_MAIL_HOST"
+        return f"v=spf1 include:{host} ~all"
+
+    @property
+    def dmarc_value(self) -> str:
+        return f"v=DMARC1; p=none; rua=mailto:dmarc@{self.domain}"
+
+    def dns_records(self):
+        """The DNS records the customer must add, with current readiness baked in.
+
+        Single source of truth for both the UI (the domain card iterates this)
+        and the DNS checker, so the names/values they compare always agree.
+        """
+        return [
+            {
+                "key": "verify", "label": "Domain verification", "type": "TXT",
+                "name": self.verify_record_name or self.domain,
+                "value": self.verify_record_value,
+                "desc": "Proves you own this domain so we can switch it on.",
+                "required": True, "ok": self.is_verified,
+            },
+            {
+                "key": "dkim", "label": "DKIM", "type": "TXT",
+                "name": self.dkim_record_name, "value": self.dkim_txt_value,
+                "desc": "Signs your mail so providers trust it wasn't tampered with.",
+                "required": True, "ok": self.dkim_ok,
+            },
+            {
+                "key": "spf", "label": "SPF", "type": "TXT",
+                "name": self.domain, "value": self.spf_value,
+                "desc": "Lists the servers allowed to send for your domain.",
+                "required": False, "ok": self.spf_ok,
+            },
+            {
+                "key": "dmarc", "label": "DMARC", "type": "TXT",
+                "name": self.dmarc_record_name, "value": self.dmarc_value,
+                "desc": "Tells receivers what to do with mail that fails the checks.",
+                "required": False, "ok": self.dmarc_ok,
+            },
+        ]
+
+    @property
+    def dns_found_count(self) -> int:
+        return sum(1 for r in self.dns_records() if r["ok"])
+
+    @property
+    def dns_total_count(self) -> int:
+        return len(self.dns_records())
 
     @property
     def dkim_txt_value(self) -> str:

@@ -42,3 +42,5 @@ Thumbs.db
 celerybeat-schedule-shm
 celerybeat-schedule-wal
 celerybeat-schedule
+# Node (Tailwind CLI rebuilds — installed transiently)
+node_modules/

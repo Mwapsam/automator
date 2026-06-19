@@ -1,0 +1,6 @@
+{% if inviter %}{{ inviter.get_username }} has invited you{% else %}You have been invited{% endif %} to join the "{{ invite.account.company_name }}" workspace on {{ site_name }} as a {{ invite.get_role_display }}.
+
+Accept your invitation:
+{{ link }}
+
+This link expires in {{ invite.EXPIRY_DAYS }} days. If you weren't expecting this invitation, you can safely ignore this email.

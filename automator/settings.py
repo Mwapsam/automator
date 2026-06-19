@@ -66,6 +66,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "apps.core.context_processors.site_context",
+                "apps.accounts.context_processors.onboarding_status",
             ],
         },
     },

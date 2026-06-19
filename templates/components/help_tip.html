@@ -1,0 +1,16 @@
+{% comment %}Small info tooltip (hover/focus/tap). Usage:
+  include components/help_tip.html with text="Storage capped by your plan."{% endcomment %}
+<span x-data="{ open: false }" class="relative inline-flex align-middle">
+  <button type="button" class="text-gray-400 hover:text-gray-600"
+          @mouseenter="open = true" @mouseleave="open = false"
+          @focus="open = true" @blur="open = false" @click.prevent="open = !open"
+          :aria-expanded="open" aria-label="More information">
+    {% include "components/icon.html" with name="question" class="w-4 h-4" %}
+  </button>
+  <span x-show="open" x-cloak x-transition.opacity role="tooltip"
+        style="z-index: var(--z-dropdown)"
+        class="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 rounded-xl
+               bg-gray-900 text-white text-xs leading-relaxed px-3 py-2 shadow-pop">
+    {{ text }}
+  </span>
+</span>

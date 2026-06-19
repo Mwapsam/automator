@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Help center — {{ site.app_name|default:"Automator" }}{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+
+  <div class="text-center mb-8">
+    <span class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-brand-100 text-brand-600 mb-4">
+      {% include "components/icon.html" with name="book-open" class="w-6 h-6" %}
+    </span>
+    <h1 class="text-2xl font-semibold tracking-tight">How can we help?</h1>
+    <p class="text-sm text-gray-500 mt-1">Guides for setting up and running {{ site.app_name|default:"your workspace" }}.</p>
+  </div>
+
+  {# Search (server-side; works without JS) #}
+  <form method="get" action="{% url 'help' %}" class="relative max-w-xl mx-auto mb-10">
+    <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-gray-400">
+      {% include "components/icon.html" with name="search" class="w-5 h-5" %}
+    </span>
+    <input type="search" name="q" value="{{ q }}" autofocus
+           placeholder="Search guides — e.g. “DNS”, “invite a teammate”, “verify domain”"
+           class="input !pl-11 !py-3 w-full" aria-label="Search help">
+  </form>
+
+  {% if results is not None %}
+    {# Search results #}
+    <div class="mb-4 flex items-center justify-between">
+      <p class="text-sm text-gray-500">{{ results|length }} result{{ results|length|pluralize }} for “{{ q }}”</p>
+      <a href="{% url 'help' %}" class="text-sm text-brand-600 hover:text-brand-700">Clear</a>
+    </div>
+    {% if results %}
+      <div class="grid sm:grid-cols-2 gap-4">
+        {% for a in results %}{% include "help/_card.html" with a=a %}{% endfor %}
+      </div>
+    {% else %}
+      <div class="card">
+        {% include "components/empty_state.html" with icon="search" title="No matching guides" message="Try a different word, or browse the categories below." %}
+      </div>
+      <div class="mt-6 space-y-8">
+        {% for cat, items in categories %}{% include "help/_category.html" with cat=cat items=items %}{% endfor %}
+      </div>
+    {% endif %}
+  {% else %}
+    {# Browse by category #}
+    <div class="space-y-8">
+      {% for cat, items in categories %}{% include "help/_category.html" with cat=cat items=items %}{% endfor %}
+    </div>
+  {% endif %}
+
+  {# Contact support #}
+  <div class="mt-12 card card-pad flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-gray-100 text-gray-500">
+        {% include "components/icon.html" with name="life-buoy" class="w-5 h-5" %}
+      </span>
+      <div>
+        <p class="font-medium text-gray-900">Still need a hand?</p>
+        <p class="text-sm text-gray-500">Can't find what you're looking for? We're happy to help.</p>
+      </div>
+    </div>
+    {% if site.support_email %}
+      <a href="mailto:{{ site.support_email }}" class="btn btn-secondary btn-sm">Contact support</a>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

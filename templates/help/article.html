@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}{{ article.title }} — Help — {{ site.app_name|default:"Automator" }}{% endblock %}
+
+{% block content %}
+<style>
+  /* Scoped prose styling for help articles (no Tailwind typography plugin). */
+  .article-body { color: #374151; font-size: 0.95rem; line-height: 1.7; }
+  .article-body > * + * { margin-top: 1rem; }
+  .article-body h2 { font-size: 1.15rem; font-weight: 600; color: #111827; margin-top: 2rem; }
+  .article-body h3 { font-size: 1rem; font-weight: 600; color: #111827; margin-top: 1.5rem; }
+  .article-body ul, .article-body ol { padding-left: 1.25rem; }
+  .article-body ul { list-style: disc; }
+  .article-body ol { list-style: decimal; }
+  .article-body li + li { margin-top: 0.35rem; }
+  .article-body a { color: #2563eb; text-decoration: underline; text-underline-offset: 2px; }
+  .article-body code { background: #f3f4f6; border-radius: 0.375rem; padding: 0.1rem 0.35rem;
+                       font-size: 0.85em; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .article-body strong { color: #111827; font-weight: 600; }
+  .article-body .note { border: 1px solid var(--tw-border, #e5e7eb); background: #f9fafb;
+                        border-radius: 0.75rem; padding: 0.85rem 1rem; font-size: 0.9rem; }
+  .article-body table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+  .article-body th, .article-body td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+  .article-body th { color: #6b7280; font-weight: 600; }
+</style>
+
+<div class="max-w-3xl mx-auto">
+  <a href="{% url 'help' %}" class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 mb-6">
+    {% include "components/icon.html" with name="arrow-left" class="w-4 h-4" %} All guides
+  </a>
+
+  <p class="text-xs font-semibold uppercase tracking-wider text-brand-600 mb-2">{{ article.category }}</p>
+  <h1 class="text-2xl font-semibold tracking-tight mb-2">{{ article.title }}</h1>
+  <p class="text-gray-500 mb-8">{{ article.summary }}</p>
+
+  <div class="article-body">
+    {% include article.template %}
+  </div>
+
+  {% if related %}
+  <div class="mt-12 pt-8 border-t border-border">
+    <h2 class="text-sm font-semibold text-gray-900 mb-3">Related guides</h2>
+    <div class="grid sm:grid-cols-2 gap-4">
+      {% for a in related %}{% include "help/_card.html" with a=a %}{% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="mt-8 text-sm text-gray-500">
+    Still stuck?
+    {% if site.support_email %}
+      <a href="mailto:{{ site.support_email }}" class="text-brand-600 hover:text-brand-700">Contact support</a>.
+    {% else %}
+      Reach out to your administrator for help.
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

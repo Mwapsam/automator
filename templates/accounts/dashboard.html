@@ -26,13 +26,15 @@
 {% else %}
 
   {% if not onboarding_complete %}
-  <a href="/onboarding/" class="block mb-6 rounded-2xl border border-brand-200 bg-brand-50 px-5 py-4 hover:bg-brand-100/60 transition">
+  <a href="{% if onboarding_next.url %}{{ onboarding_next.url }}{% else %}/onboarding/{% endif %}" class="block mb-6 rounded-2xl border border-brand-200 bg-brand-50 px-5 py-4 hover:bg-brand-100/60 transition">
     <div class="flex items-center justify-between gap-4">
       <div>
         <p class="text-sm font-medium text-brand-800">Finish setting up your workspace</p>
-        <p class="text-xs text-brand-600 mt-0.5">{{ onboarding_done }} of {{ onboarding_total }} steps complete — set up email to start sending.</p>
+        <p class="text-xs text-brand-600 mt-0.5">
+          {{ onboarding_done }} of {{ onboarding_total }} essentials complete{% if onboarding_next %} — next: {{ onboarding_next.title|lower }}{% endif %}.
+        </p>
       </div>
-      <span class="text-sm font-medium text-brand-700 shrink-0">Continue →</span>
+      <span class="text-sm font-medium text-brand-700 shrink-0">{% if onboarding_next.cta %}{{ onboarding_next.cta }}{% else %}Continue{% endif %} →</span>
     </div>
   </a>
   {% endif %}

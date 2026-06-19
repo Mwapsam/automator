@@ -6,6 +6,10 @@
   <div>
     <h1 class="text-2xl font-semibold tracking-tight">Sending domains</h1>
     <p class="text-sm text-gray-500 mt-1">Provision domains, verify DNS, and manage your transactional API key.</p>
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2">
+      {% include "components/help_link.html" with slug="domains" text="Domain setup guide" %}
+      {% include "components/help_link.html" with slug="dns-setup" text="How to add DNS records" %}
+    </div>
   </div>
   <a href="/email/mailboxes/" class="btn btn-secondary btn-sm">
     {% include "components/icon.html" with name="inbox" class="w-4 h-4" %}
@@ -50,31 +54,12 @@
 </div>
 {% endif %}
 
-{# Progstack verification token (per-account) #}
-{% if account %}
-<div class="card card-pad mb-6">
-  <h2 class="font-semibold flex items-center gap-2 mb-1">
-    {% include "components/icon.html" with name="check-circle" class="w-4 h-4 text-gray-400" %}
-    Domain verification token
-  </h2>
-  <p class="text-sm text-gray-600 mb-3">Your Progstack API token. Required to generate verification records and verify domains.</p>
-  <form method="post" action="/email/progstack-token/" class="flex flex-wrap gap-3">
-    {% csrf_token %}
-    <label class="sr-only" for="id_progstack_token">Progstack API token</label>
-    <input id="id_progstack_token" name="token" type="text" autocomplete="off"
-           value="{{ account.progstack_token }}" placeholder="progstack_…"
-           class="input flex-1 min-w-[16rem] font-mono text-xs">
-    <button class="btn btn-secondary" type="submit">Save token</button>
-  </form>
-  {% if not account.progstack_token %}
-    <p class="help mt-2 text-amber-600">No token set — add one to verify your domains.</p>
-  {% endif %}
-</div>
-{% endif %}
-
 {# Add domain #}
 <div class="card card-pad mb-6">
-  <h2 class="font-semibold mb-4">Add a sending domain</h2>
+  <h2 class="font-semibold mb-4 flex items-center gap-1.5">
+    Add a sending domain
+    {% include "components/help_tip.html" with text="Use a subdomain like mail.yourcompany.com so your main inbox (e.g. Google Workspace) is unaffected." %}
+  </h2>
   <form data-ajax method="post" action="/email/domains/create/"
         data-append="#domains-list" data-remove="#domains-empty" data-reset
         class="flex flex-wrap gap-3">

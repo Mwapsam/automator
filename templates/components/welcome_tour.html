@@ -1,0 +1,91 @@
+{% comment %}First-run welcome tour. Renders app-wide while onboarding is
+incomplete; auto-opens once (localStorage), and is replayable via the
+`open-welcome-tour` event dispatched by the setup widget.{% endcomment %}
+<div x-data="{
+        open: false, step: 0, total: 5,
+        init() { if (!localStorage.getItem('welcomeTourSeen')) this.open = true; },
+        markSeen() { localStorage.setItem('welcomeTourSeen', '1'); },
+        next() { if (this.step < this.total - 1) this.step++; else this.finish(); },
+        prev() { if (this.step > 0) this.step--; },
+        finish() { this.markSeen(); this.open = false; },
+     }"
+     @open-welcome-tour.window="step = 0; open = true"
+     x-show="open" x-cloak class="fixed inset-0 flex items-center justify-center p-4"
+     style="z-index: var(--z-modal)" @keydown.escape.window="finish()">
+
+  <div class="absolute inset-0 bg-gray-900/50" @click="finish()"></div>
+
+  <div class="relative card shadow-modal w-full max-w-md" x-trap.noscroll="open" role="dialog" aria-modal="true">
+    <button type="button" @click="finish()" class="absolute top-3 right-3 btn-ghost rounded-lg p-1.5 text-gray-400" aria-label="Close">
+      {% include "components/icon.html" with name="x" class="w-5 h-5" %}
+    </button>
+
+    <div class="p-7 text-center">
+      {# Slide 0 — welcome #}
+      <div x-show="step === 0">
+        <span class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-brand-100 text-brand-600 mb-4">
+          {% include "components/icon.html" with name="sparkles" class="w-6 h-6" %}
+        </span>
+        <h2 class="text-lg font-semibold">Welcome to {{ site.app_name|default:"Automator" }}</h2>
+        <p class="text-sm text-gray-500 mt-2">Let's take 30 seconds to show you around. You'll be sending email from your own domain in no time.</p>
+      </div>
+
+      {# Slide 1 — domains #}
+      <div x-show="step === 1" x-cloak>
+        <span class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-brand-100 text-brand-600 mb-4">
+          {% include "components/icon.html" with name="globe" class="w-6 h-6" %}
+        </span>
+        <h2 class="text-lg font-semibold">1 · Set up a sending domain</h2>
+        <p class="text-sm text-gray-500 mt-2">Add your domain, copy the DNS records we generate, and we'll verify them automatically — no technical know-how required.</p>
+        <a href="/email/domains/" @click="markSeen()" class="btn btn-secondary btn-sm mt-4">Go to Domains</a>
+      </div>
+
+      {# Slide 2 — mailboxes #}
+      <div x-show="step === 2" x-cloak>
+        <span class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-brand-100 text-brand-600 mb-4">
+          {% include "components/icon.html" with name="inbox" class="w-6 h-6" %}
+        </span>
+        <h2 class="text-lg font-semibold">2 · Create mailboxes &amp; aliases</h2>
+        <p class="text-sm text-gray-500 mt-2">Once your domain is verified, add real mailboxes and forwarding aliases for your team in a couple of clicks.</p>
+        <a href="/email/mailboxes/" @click="markSeen()" class="btn btn-secondary btn-sm mt-4">Go to Mailboxes</a>
+      </div>
+
+      {# Slide 3 — team #}
+      <div x-show="step === 3" x-cloak>
+        <span class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-brand-100 text-brand-600 mb-4">
+          {% include "components/icon.html" with name="user" class="w-6 h-6" %}
+        </span>
+        <h2 class="text-lg font-semibold">3 · Invite your team</h2>
+        <p class="text-sm text-gray-500 mt-2">Bring colleagues in and give them the right role — admins help manage everything, members manage email.</p>
+        <a href="/settings/team/" @click="markSeen()" class="btn btn-secondary btn-sm mt-4">Go to Team</a>
+      </div>
+
+      {# Slide 4 — help #}
+      <div x-show="step === 4" x-cloak>
+        <span class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-brand-100 text-brand-600 mb-4">
+          {% include "components/icon.html" with name="book-open" class="w-6 h-6" %}
+        </span>
+        <h2 class="text-lg font-semibold">Help is always a click away</h2>
+        <p class="text-sm text-gray-500 mt-2">The <strong>Help &amp; guides</strong> section has step-by-step articles for everything, and your setup checklist lives in the corner whenever you need it.</p>
+        <a href="/help/" @click="markSeen()" class="btn btn-secondary btn-sm mt-4">Browse the help center</a>
+      </div>
+    </div>
+
+    {# Footer: dots + nav #}
+    <div class="flex items-center justify-between px-7 py-4 border-t border-border">
+      <div class="flex items-center gap-1.5">
+        <template x-for="i in total" :key="i">
+          <span class="w-1.5 h-1.5 rounded-full transition-colors"
+                :class="(i - 1) === step ? 'bg-brand-600' : 'bg-gray-200'"></span>
+        </template>
+      </div>
+      <div class="flex items-center gap-2">
+        <button type="button" x-show="step > 0" @click="prev()" class="btn btn-ghost btn-sm">Back</button>
+        <button type="button" @click="next()" class="btn btn-primary btn-sm">
+          <span x-show="step < total - 1">Next</span>
+          <span x-show="step === total - 1" x-cloak>Finish</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

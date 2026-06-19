@@ -1,28 +1,29 @@
-{% comment %}One sending-domain card. Rendered in the list loop and returned by
-AJAX create/verify/toggle. Needs: d, is_admin, mail_host.{% endcomment %}
-<div id="domain-card-{{ d.pk }}" class="card card-pad">
+{% comment %}One sending-domain card with guided DNS setup. Rendered in the list
+loop and returned by AJAX create/check/toggle. Needs: d, is_admin.
+
+`data-domain-pending="1"` marks unverified cards for the JS auto-poll, which
+re-submits the data-dns-check form until the domain verifies itself.{% endcomment %}
+<div id="domain-card-{{ d.pk }}" class="card card-pad"{% if not d.is_verified %} data-domain-pending="1"{% endif %}>
   <div class="flex flex-wrap items-start justify-between gap-3">
     <div class="min-w-0">
       <div class="flex items-center gap-2">
         <h3 class="font-semibold text-gray-900 truncate">{{ d.domain }}</h3>
         {% if d.status == 'verified' %}<span class="badge badge-success">Verified</span>
         {% elif d.status == 'failed' %}<span class="badge badge-danger">Failed</span>
-        {% else %}<span class="badge badge-warning">Pending</span>{% endif %}
+        {% else %}<span class="badge badge-warning">Pending DNS</span>{% endif %}
         {% if not d.is_active %}<span class="badge badge-neutral">Disabled</span>{% endif %}
       </div>
       {% if is_admin %}<p class="text-xs text-gray-400 mt-1">{{ d.account.company_name }}</p>{% endif %}
     </div>
     <div class="flex items-center gap-1.5 shrink-0">
-      {% if not d.is_verified %}
-        <form data-ajax method="post" action="/email/domains/{{ d.pk }}/verify/"
-              data-swap="#domain-card-{{ d.pk }}">
-          {% csrf_token %}
-          <button class="btn btn-secondary btn-sm" type="submit">
-            {% include "components/icon.html" with name="check-circle" class="w-4 h-4" %}
-            Verify
-          </button>
-        </form>
-      {% endif %}
+      <form data-ajax data-dns-check data-auto method="post" action="/email/domains/{{ d.pk }}/verify/"
+            data-swap="#domain-card-{{ d.pk }}">
+        {% csrf_token %}
+        <button class="btn btn-secondary btn-sm" type="submit">
+          {% include "components/icon.html" with name="refresh" class="w-4 h-4" %}
+          {% if d.is_verified %}Re-check DNS{% else %}Check DNS{% endif %}
+        </button>
+      </form>
       <form data-ajax method="post" action="/email/domains/{{ d.pk }}/toggle/"
             data-swap="#domain-card-{{ d.pk }}">
         {% csrf_token %}
@@ -40,83 +41,96 @@ AJAX create/verify/toggle. Needs: d, is_admin, mail_host.{% endcomment %}
     </div>
   </div>
 
+  {# Guidance banner #}
+  {% if d.is_verified %}
+    <div class="mt-3 flex items-center gap-2 text-sm text-green-700">
+      {% include "components/icon.html" with name="check-circle" class="w-4 h-4 shrink-0" %}
+      <span>Domain verified{% if d.dns_found_count < d.dns_total_count %} — {{ d.dns_found_count }} of {{ d.dns_total_count }} records live. Add the rest for the best deliverability.{% else %} — all records are live.{% endif %}</span>
+    </div>
+  {% else %}
+    <div class="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+      Add the records below at your DNS provider. We re-check automatically every few seconds — <strong>{{ d.dns_found_count }} of {{ d.dns_total_count }}</strong> found so far.
+    </div>
+  {% endif %}
+
+  {# Records #}
   <div class="mt-4">
-    <p class="text-xs font-medium text-gray-500 mb-2">DNS records — add these at your DNS provider</p>
+    <div class="flex items-center justify-between gap-2 mb-2">
+      <p class="text-xs font-medium text-gray-500">DNS records — add each one at your DNS provider</p>
+      {% include "components/help_link.html" with slug="dns-setup" text="Full guide" %}
+    </div>
+
     <div class="grid gap-3">
-      {# Ownership verification (Progstack) #}
-      {% if d.verify_record_value %}
-      <div class="rounded-xl border border-brand-200 bg-brand-50/50 p-3">
-        <div class="flex items-center gap-2 mb-2">
-          <span class="badge badge-neutral">TXT</span>
-          <span class="text-xs font-medium text-gray-700">Domain verification</span>
-        </div>
-        <dl class="grid gap-2 text-xs">
-          {% if d.verify_record_name %}
-          <div class="grid grid-cols-[4rem,1fr] items-center gap-2">
-            <dt class="text-gray-500">Name</dt>
-            <dd class="min-w-0">{% include "components/copy_field.html" with value=d.verify_record_name label="Copy" %}</dd>
-          </div>
+      {% for rec in d.dns_records %}
+      <div class="rounded-xl border p-3 {% if rec.ok %}border-green-200 bg-green-50/40{% else %}border-border bg-gray-50/50{% endif %}">
+        <div class="flex items-center gap-2 mb-1.5">
+          {% if rec.ok %}
+            <span class="inline-flex items-center gap-1 text-xs font-medium text-green-700">
+              {% include "components/icon.html" with name="check-circle" class="w-4 h-4" %} Found
+            </span>
+          {% else %}
+            <span class="inline-flex items-center gap-1 text-xs font-medium text-gray-400">
+              {% include "components/icon.html" with name="alert" class="w-4 h-4" %} Not found yet
+            </span>
           {% endif %}
-          <div class="grid grid-cols-[4rem,1fr] items-center gap-2">
-            <dt class="text-gray-500">Value</dt>
-            <dd class="min-w-0">{% include "components/copy_field.html" with value=d.verify_record_value label="Copy" %}</dd>
-          </div>
-        </dl>
-      </div>
-      {% endif %}
-
-      {# DKIM #}
-      <div class="rounded-xl border border-border bg-gray-50/50 p-3">
-        <div class="flex items-center gap-2 mb-2">
-          <span class="badge badge-neutral">TXT</span>
-          <span class="text-xs font-medium text-gray-700">DKIM</span>
+          <span class="badge badge-neutral">{{ rec.type }}</span>
+          <span class="text-xs font-medium text-gray-700 truncate">{{ rec.label }}</span>
+          {% if rec.required %}<span class="text-[11px] text-red-500">required</span>
+          {% else %}<span class="text-[11px] text-gray-400">recommended</span>{% endif %}
         </div>
+        <p class="text-xs text-gray-500 mb-2">{{ rec.desc }}</p>
         <dl class="grid gap-2 text-xs">
           <div class="grid grid-cols-[4rem,1fr] items-center gap-2">
             <dt class="text-gray-500">Name</dt>
-            <dd class="min-w-0">{% include "components/copy_field.html" with value=d.dkim_record_name label="Copy" %}</dd>
+            <dd class="min-w-0">{% include "components/copy_field.html" with value=rec.name label="Copy" %}</dd>
           </div>
           <div class="grid grid-cols-[4rem,1fr] items-center gap-2">
             <dt class="text-gray-500">Value</dt>
-            <dd class="min-w-0">{% include "components/copy_field.html" with value=d.dkim_txt_value|default:"(pending provisioning)" label="Copy" %}</dd>
+            <dd class="min-w-0">{% include "components/copy_field.html" with value=rec.value|default:"(pending provisioning)" label="Copy" %}</dd>
           </div>
         </dl>
       </div>
+      {% endfor %}
+    </div>
 
-      {# SPF #}
-      <div class="rounded-xl border border-border bg-gray-50/50 p-3">
-        <div class="flex items-center gap-2 mb-2">
-          <span class="badge badge-neutral">TXT</span>
-          <span class="text-xs font-medium text-gray-700">SPF</span>
-        </div>
-        <dl class="grid gap-2 text-xs">
-          <div class="grid grid-cols-[4rem,1fr] items-center gap-2">
-            <dt class="text-gray-500">Name</dt>
-            <dd class="min-w-0">{% include "components/copy_field.html" with value=d.domain label="Copy" %}</dd>
-          </div>
-          <div class="grid grid-cols-[4rem,1fr] items-center gap-2">
-            <dt class="text-gray-500">Value</dt>
-            <dd class="min-w-0">{% include "components/copy_field.html" with value="v=spf1 include:"|add:mail_host|add:" ~all" label="Copy" %}</dd>
-          </div>
-        </dl>
-      </div>
+    {# Per-provider instructions (collapsed by default) #}
+    <div x-data="{ open: false, tab: 'cloudflare' }" class="mt-3">
+      <button type="button" class="inline-flex items-center gap-1.5 text-sm text-brand-600 hover:text-brand-700"
+              @click="open = !open" :aria-expanded="open">
+        <span class="inline-flex transition-transform" :class="open ? 'rotate-180' : ''">
+          {% include "components/icon.html" with name="chevron-down" class="w-4 h-4" %}
+        </span>
+        How do I add these at my provider?
+      </button>
 
-      {# DMARC #}
-      <div class="rounded-xl border border-border bg-gray-50/50 p-3">
-        <div class="flex items-center gap-2 mb-2">
-          <span class="badge badge-neutral">TXT</span>
-          <span class="text-xs font-medium text-gray-700">DMARC</span>
+      <div x-show="open" x-cloak x-transition class="mt-3 rounded-xl border border-border bg-white p-3">
+        <div class="flex flex-wrap gap-1 mb-3 text-xs">
+          <button type="button" @click="tab='cloudflare'" :class="tab==='cloudflare' ? 'bg-brand-50 text-brand-700' : 'text-gray-500 hover:bg-gray-50'" class="px-2.5 py-1 rounded-lg font-medium">Cloudflare</button>
+          <button type="button" @click="tab='godaddy'" :class="tab==='godaddy' ? 'bg-brand-50 text-brand-700' : 'text-gray-500 hover:bg-gray-50'" class="px-2.5 py-1 rounded-lg font-medium">GoDaddy</button>
+          <button type="button" @click="tab='namecheap'" :class="tab==='namecheap' ? 'bg-brand-50 text-brand-700' : 'text-gray-500 hover:bg-gray-50'" class="px-2.5 py-1 rounded-lg font-medium">Namecheap</button>
+          <button type="button" @click="tab='other'" :class="tab==='other' ? 'bg-brand-50 text-brand-700' : 'text-gray-500 hover:bg-gray-50'" class="px-2.5 py-1 rounded-lg font-medium">Other</button>
         </div>
-        <dl class="grid gap-2 text-xs">
-          <div class="grid grid-cols-[4rem,1fr] items-center gap-2">
-            <dt class="text-gray-500">Name</dt>
-            <dd class="min-w-0">{% include "components/copy_field.html" with value=d.dmarc_record_name label="Copy" %}</dd>
-          </div>
-          <div class="grid grid-cols-[4rem,1fr] items-center gap-2">
-            <dt class="text-gray-500">Value</dt>
-            <dd class="min-w-0">{% include "components/copy_field.html" with value="v=DMARC1; p=none; rua=mailto:dmarc@"|add:d.domain label="Copy" %}</dd>
-          </div>
-        </dl>
+
+        <ol x-show="tab==='cloudflare'" class="list-decimal pl-4 space-y-1 text-xs text-gray-600">
+          <li>Open your domain → <strong>DNS</strong> → <strong>Records</strong> → <strong>Add record</strong>.</li>
+          <li>Set Type to <strong>TXT</strong>, then paste the <strong>Name</strong> and <strong>Value</strong> (Cloudflare calls Value “Content”).</li>
+          <li>Leave Proxy status as <strong>DNS only</strong> and Save. Repeat for each record above.</li>
+        </ol>
+        <ol x-show="tab==='godaddy'" x-cloak class="list-decimal pl-4 space-y-1 text-xs text-gray-600">
+          <li>My Products → your domain → <strong>DNS</strong> → <strong>Add</strong>.</li>
+          <li>Choose <strong>TXT</strong>. For a root record GoDaddy uses <code>@</code>; if it auto-appends your domain, paste only the host part of the Name.</li>
+          <li>Paste the Value and Save. Repeat for each record.</li>
+        </ol>
+        <ol x-show="tab==='namecheap'" x-cloak class="list-decimal pl-4 space-y-1 text-xs text-gray-600">
+          <li>Domain List → <strong>Manage</strong> → <strong>Advanced DNS</strong> → <strong>Add New Record</strong>.</li>
+          <li>Pick <strong>TXT Record</strong>; the <em>Host</em> field is the Name, <em>Value</em> is the Value.</li>
+          <li>Save (the green tick). Repeat for each record.</li>
+        </ol>
+        <ol x-show="tab==='other'" x-cloak class="list-decimal pl-4 space-y-1 text-xs text-gray-600">
+          <li>Find the DNS / Zone editor in your registrar or DNS host.</li>
+          <li>Add each record above as a <strong>TXT</strong> record using the Name and Value shown.</li>
+          <li>Leave TTL at default. See the <a href="{% url 'help-article' 'dns-setup' %}" class="text-brand-600">DNS setup guide</a> for more.</li>
+        </ol>
       </div>
     </div>
   </div>

@@ -1,0 +1,7 @@
+{% comment %}A help category section. Needs: cat (name), items (articles).{% endcomment %}
+<section>
+  <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">{{ cat }}</h2>
+  <div class="grid sm:grid-cols-2 gap-4">
+    {% for a in items %}{% include "help/_card.html" with a=a %}{% endfor %}
+  </div>
+</section>

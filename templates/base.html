@@ -103,6 +103,15 @@
             <p class="text-sm font-medium text-gray-900 truncate">{{ user.get_username }}</p>
             {% if user.email %}<p class="text-xs text-gray-400 truncate">{{ user.email }}</p>{% endif %}
           </div>
+          <a href="{% url 'settings-profile' %}" class="nav-link w-full" role="menuitem">
+            {% include "components/icon.html" with name="user" class="w-4 h-4 shrink-0" %}
+            <span>Profile</span>
+          </a>
+          <a href="{% url 'settings-team' %}" class="nav-link w-full" role="menuitem">
+            {% include "components/icon.html" with name="user" class="w-4 h-4 shrink-0" %}
+            <span>Team</span>
+          </a>
+          <div class="my-1 border-t border-border"></div>
           <form method="post" action="/auth/logout/" role="none">
             {% csrf_token %}
             <button class="nav-link w-full text-left" role="menuitem">
@@ -131,5 +140,12 @@
 
   {% include "components/toast.html" %}
   {% include "components/confirm.html" %}
+
+  {# Self-service onboarding: floating checklist + first-run tour (only while
+     setup is incomplete; the onboarding page already shows the full checklist). #}
+  {% if onboarding %}
+    {% if request.path != "/onboarding/" %}{% include "components/onboarding_widget.html" %}{% endif %}
+    {% include "components/welcome_tour.html" %}
+  {% endif %}
 </body>
 </html>

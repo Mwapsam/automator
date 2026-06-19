@@ -1,0 +1,30 @@
+{% comment %}Body for the "Add & configure a sending domain" guide.{% endcomment %}
+<p>A <strong>sending domain</strong> is the domain your email comes from — for example <code>mail.yourcompany.com</code>. You manage all of yours on the <a href="/email/domains/">Domains</a> page.</p>
+
+<h2>Add a domain</h2>
+<ol>
+  <li>Open <a href="/email/domains/">Domains</a>.</li>
+  <li>Under <strong>Add a sending domain</strong>, type your domain and click <strong>Provision</strong>.</li>
+  <li>The new domain appears as a card with its DNS records ready to copy.</li>
+</ol>
+<div class="note">Tip: many businesses use a subdomain like <code>mail.</code> or <code>send.</code> for sending. This keeps your main domain's email (e.g. your inbox at Google Workspace) untouched.</div>
+
+<h2>What the statuses mean</h2>
+<table>
+  <thead><tr><th>Status</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Pending DNS</strong></td><td>The domain is added but we haven't found your DNS records yet. Add the records, then click Check DNS.</td></tr>
+    <tr><td><strong>Verified</strong></td><td>Your DNS is confirmed and the domain is ready to send and host mailboxes.</td></tr>
+    <tr><td><strong>Failed</strong></td><td>Provisioning hit an error on the mail server. Try again, or contact support if it persists.</td></tr>
+    <tr><td><strong>Disabled</strong></td><td>You've paused the domain — it stays configured but won't send.</td></tr>
+  </tbody>
+</table>
+
+<h2>Check &amp; verify a domain</h2>
+<p>After adding your DNS records, click <strong>Check DNS</strong> on the domain card. Each record is marked <em>Found</em> or <em>Not found yet</em>, and the domain verifies as soon as your ownership record is live. The card re-checks on its own every few seconds, so you can simply leave it open. If records aren't showing up, see the <a href="{% url 'help-article' 'dns-setup' %}">DNS setup guide</a> and the <a href="{% url 'help-article' 'troubleshooting' %}">troubleshooting guide</a>.</p>
+
+<h2>Enable or disable a domain</h2>
+<p>Use <strong>Disable</strong> to temporarily stop a domain from sending without deleting it; click <strong>Enable</strong> to turn it back on. The configuration and records are preserved either way.</p>
+
+<h2>Delete a domain</h2>
+<p>Deleting a domain is permanent and also removes <strong>all of its mailboxes and aliases</strong>. You'll be asked to confirm. If you only want to pause sending, disable it instead.</p>

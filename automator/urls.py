@@ -3,6 +3,8 @@ from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import path, include
 
+from apps.core import views as core_views
+
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("auth/login/", auth_views.LoginView.as_view(template_name="auth/login.html"), name="login"),
@@ -35,6 +37,8 @@ urlpatterns = [
         auth_views.PasswordResetCompleteView.as_view(template_name="auth/password_reset_complete.html"),
         name="password_reset_complete",
     ),
+    path("help/", core_views.help_index, name="help"),
+    path("help/<slug:slug>/", core_views.help_article, name="help-article"),
     path("", include("apps.accounts.urls")),
     path("email/", include("apps.email.urls")),
     path("billing/", include("apps.billing.urls", namespace="billing")),

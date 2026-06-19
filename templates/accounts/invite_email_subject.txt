@@ -1,0 +1,1 @@
+You're invited to join {{ invite.account.company_name }} on {{ site_name }}

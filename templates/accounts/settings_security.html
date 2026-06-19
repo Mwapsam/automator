@@ -1,0 +1,43 @@
+{% extends "accounts/settings_base.html" %}
+{% block settings_content %}
+<div class="mb-5 max-w-xl">{% include "components/help_link.html" with slug="security" text="Security &amp; sign-in guide" %}</div>
+<div class="card card-pad max-w-xl">
+  <h2 class="font-semibold mb-1">Change password</h2>
+  <p class="text-sm text-gray-500 mb-4">Choose a strong password you don't use anywhere else.</p>
+
+  {% if form.non_field_errors %}
+    <div class="mb-4 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+      {% include "components/icon.html" with name="alert" class="w-4 h-4 text-red-500 shrink-0 mt-0.5" %}
+      <p class="text-sm text-red-700">{{ form.non_field_errors|join:" " }}</p>
+    </div>
+  {% endif %}
+
+  <form method="post" class="space-y-4">
+    {% csrf_token %}
+    {% for field in form %}
+      <div>
+        <label for="{{ field.id_for_label }}" class="label">{{ field.label }}</label>
+        <input id="{{ field.id_for_label }}" type="password" name="{{ field.name }}"
+               autocomplete="{% if field.name == 'old_password' %}current-password{% else %}new-password{% endif %}"
+               class="input{% if field.errors %} input-error{% endif %}">
+        {% if field.errors %}<p class="field-error">{{ field.errors|join:" " }}</p>
+        {% elif field.help_text %}<p class="help">{{ field.help_text|safe }}</p>{% endif %}
+      </div>
+    {% endfor %}
+    <button class="btn btn-primary" type="submit">Update password</button>
+  </form>
+</div>
+
+<div class="card card-pad max-w-xl mt-4">
+  <h2 class="font-semibold mb-1">Session</h2>
+  <p class="text-sm text-gray-500">
+    Signed in as <span class="font-medium text-gray-700">{{ user.get_username }}</span>{% if user.last_login %} · last sign-in {{ user.last_login|date:"M j, Y · H:i" }}{% endif %}.
+  </p>
+  <form method="post" action="/auth/logout/" class="mt-3">
+    {% csrf_token %}
+    <button class="btn btn-secondary btn-sm" type="submit">
+      {% include "components/icon.html" with name="logout" class="w-4 h-4" %} Sign out
+    </button>
+  </form>
+</div>
+{% endblock %}

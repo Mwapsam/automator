@@ -1,0 +1,48 @@
+{% comment %}Body for the "Troubleshooting & FAQ" guide.{% endcomment %}
+<p>Most setup snags come down to DNS or plan limits. Here are the issues we see most often and how to fix them.</p>
+
+<h2>My domain won't verify</h2>
+<p>This almost always means the DNS records aren't visible yet. Check:</p>
+<ul>
+  <li><strong>Give it time.</strong> DNS can take minutes to a few hours to propagate. The card re-checks automatically, or click <strong>Check DNS</strong> to re-run it now. Each record shows <em>Found</em> / <em>Not found yet</em> so you can see what's missing.</li>
+  <li><strong>Record type is TXT.</strong> All four records (verification, DKIM, SPF, DMARC) are TXT records.</li>
+  <li><strong>Name and Value match exactly.</strong> Use the copy buttons on the domain card — a stray space or missing character will fail.</li>
+  <li><strong>Host name format.</strong> Some providers append your domain automatically; if so, enter only the host part. See <a href="{% url 'help-article' 'dns-setup' %}">DNS setup</a>.</li>
+  <li><strong>Right domain.</strong> Make sure you added the records to the same domain you provisioned.</li>
+</ul>
+
+<h2>My emails aren't sending (API)</h2>
+<ul>
+  <li><strong>Domain verified?</strong> You can only send from a verified domain. Check the <a href="/email/domains/">Domains</a> page.</li>
+  <li><strong>API key active?</strong> Generate or regenerate a key on the Domains page and send it in the <code>X-Api-Key</code> header.</li>
+  <li><strong>Plan includes the API.</strong> The email API &amp; SMTP relay is a plan feature. If yours doesn't include it, upgrade on <a href="/billing/plans/">Billing</a>.</li>
+  <li><strong>Monthly limit reached?</strong> Check your usage on the <a href="/dashboard/">dashboard</a>.</li>
+  <li><strong>From address.</strong> The <code>from</code> must be on a verified domain for your account.</li>
+</ul>
+
+<h2>A message shows as "Failed"</h2>
+<p>Open <a href="/email/insights/">Insights</a> (on supported plans) to see delivery logs and the reason. Common causes are an invalid recipient address or the receiving server rejecting the mail. Fix the address and resend.</p>
+
+<h2>My mail lands in spam</h2>
+<ul>
+  <li>Make sure <strong>SPF, DKIM and DMARC</strong> are all added and the domain is verified — these are what build sender reputation.</li>
+  <li>Avoid spam-trigger content and send to people who expect your mail.</li>
+  <li>New domains build reputation over time; start with low volume.</li>
+</ul>
+
+<h2>I can't create a mailbox</h2>
+<ul>
+  <li>The domain must be <strong>verified</strong> first.</li>
+  <li>You may have hit your plan's mailbox limit — upgrade on <a href="/billing/plans/">Billing</a>.</li>
+  <li>Requested storage above your plan's cap is automatically reduced.</li>
+</ul>
+
+<h2>A teammate didn't get their invite</h2>
+<ul>
+  <li>Ask them to check spam/junk.</li>
+  <li>Confirm the email address on <a href="/settings/team/">Settings → Team</a> under "Pending invitations".</li>
+  <li>Invites expire after 7 days — revoke and re-send if needed.</li>
+</ul>
+
+<h2>Still stuck?</h2>
+<p>If none of the above helps, reach out — see the contact option at the bottom of any help page.</p>

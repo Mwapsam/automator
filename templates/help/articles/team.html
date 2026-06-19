@@ -1,0 +1,37 @@
+{% comment %}Body for the "Invite & manage your team" guide.{% endcomment %}
+<p>Workspaces can have as many teammates as you like. Manage everyone from <a href="/settings/team/">Settings → Team</a>.</p>
+
+<h2>Roles</h2>
+<table>
+  <thead><tr><th>Role</th><th>Can do</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Owner</strong></td><td>Everything, including billing. There is one owner — the person who created the workspace.</td></tr>
+    <tr><td><strong>Admin</strong></td><td>Manage email (domains, mailboxes, aliases) <em>and</em> manage the team (invite, change roles, remove members).</td></tr>
+    <tr><td><strong>Member</strong></td><td>Manage email — domains, mailboxes and aliases — but not the team.</td></tr>
+  </tbody>
+</table>
+
+<h2>Invite a teammate</h2>
+<ol>
+  <li>Go to <a href="/settings/team/">Settings → Team</a> (you must be an owner or admin).</li>
+  <li>Under <strong>Invite a teammate</strong>, enter their email and pick a role.</li>
+  <li>Click <strong>Send invite</strong>. They'll get an email with a secure link.</li>
+</ol>
+<div class="note">Invitation links expire after <strong>7 days</strong>. If one lapses, just send a new invite.</div>
+
+<h2>What the invitee sees</h2>
+<ul>
+  <li>If they're <strong>new</strong>, the link lets them create an account and join in one step.</li>
+  <li>If they <strong>already have an account</strong> with that email, they're asked to sign in to accept.</li>
+  <li>If they're <strong>already signed in</strong>, they just confirm and join.</li>
+</ul>
+
+<h2>Manage members</h2>
+<ul>
+  <li><strong>Change a role</strong> — use "Make admin" / "Make member" next to a member.</li>
+  <li><strong>Remove a member</strong> — the trash icon revokes their access immediately.</li>
+  <li><strong>Revoke a pending invite</strong> — under "Pending invitations", click <strong>Revoke</strong>.</li>
+</ul>
+<p>The owner can't be removed or have their role changed, and you can't remove yourself. To hand over ownership, contact support.</p>
+
+<p>For password and sign-in topics, see <a href="{% url 'help-article' 'security' %}">Security &amp; sign-in</a>.</p>

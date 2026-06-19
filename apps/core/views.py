@@ -4,12 +4,14 @@ from datetime import timedelta
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.db.models import Count
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from apps.accounts.models import Account
 from apps.billing.models import Plan, Subscription, UsageSummary
+from apps.core import help as help_kb
 from apps.core.models import SiteSettings
 from apps.core.utils import admin_required
 
@@ -113,6 +115,28 @@ def settings_page(request):
     return render(request, "core/settings.html", {
         "plans": Plan.objects.all().order_by("price_monthly"),
         "admins": User.objects.order_by("-is_superuser", "username"),
+    })
+
+
+# --- Help center (public knowledge base) --------------------------------------
+
+def help_index(request):
+    q = (request.GET.get("q") or "").strip()
+    results = help_kb.search(q) if q else None
+    return render(request, "help/index.html", {
+        "q": q,
+        "results": results,
+        "categories": help_kb.grouped(),
+    })
+
+
+def help_article(request, slug):
+    article = help_kb.get_article(slug)
+    if article is None:
+        raise Http404("No such help article")
+    return render(request, "help/article.html", {
+        "article": article,
+        "related": help_kb.related_to(article),
     })
 
 

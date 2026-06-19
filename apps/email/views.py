@@ -12,8 +12,8 @@ from django.views.decorators.http import require_POST
 
 from apps.accounts.models import Account
 from apps.accounts.utils import get_current_account
+from apps.email import dnscheck
 from apps.email.iredmail import IRedMailClient, IRedMailError
-from apps.email.progstack import ProgstackClient, ProgstackError
 from apps.email.models import (
     EmailAlias,
     EmailApiKey,
@@ -64,12 +64,14 @@ def _ajax_error(message: str, status: int = 400):
 
 
 def _domain_card(request, record):
-    from django.conf import settings
     return render(request, "email/_domain_card.html", {
         "d": record,
         "is_admin": _is_admin(request),
-        "mail_host": settings.EMAIL_HOST or "YOUR_MAIL_HOST",
     })
+
+
+# Map the toast "kind" to a Django messages level for non-AJAX fallbacks.
+_MSG_LEVEL = {"success": messages.SUCCESS, "warning": messages.WARNING, "danger": messages.ERROR}
 
 
 def _mailbox_row(request, mb):
@@ -94,7 +96,6 @@ def domains_list(request):
         if account
         else None
     )
-    from django.conf import settings
     from apps.billing.limits import LimitChecker
 
     # The API + SMTP relay is a plan capability; admins always see it.
@@ -107,7 +108,6 @@ def domains_list(request):
         "api_key": api_key,
         "recent": recent,
         "email_apis_enabled": email_apis_enabled,
-        "mail_host": settings.EMAIL_HOST or "YOUR_MAIL_HOST",
         # Admins choose which tenant a new domain belongs to.
         "accounts": Account.objects.order_by("company_name") if admin else None,
     })
@@ -147,7 +147,11 @@ def domain_create(request):
             return redirect("email-domains")
 
     record = EmailDomain.objects.create(account=account, domain=domain)
-    kind, message = "success", f"{domain} provisioned — add the DNS records, then verify."
+    # Mint our own ownership-verification TXT (no external API / per-account token).
+    record.ensure_verification_token()
+    record.save(update_fields=["verify_record_name", "verify_record_value"])
+
+    kind, message = "success", f"{domain} added — add the DNS records below, then run the DNS check."
     try:
         client = IRedMailClient()
         result = client.provision_sending_domain(domain, selector=record.dkim_selector)
@@ -160,25 +164,21 @@ def domain_create(request):
         logger.error("domain_create: mail server error for %s: %s", domain, exc)
         kind, message = "danger", f"Provisioning failed: {exc}"
 
-    # Fetch the Progstack ownership-verification TXT record so the customer can
-    # add it alongside DKIM/SPF/DMARC. Best-effort: a missing token or API error
-    # shouldn't fail provisioning — they can set the token and re-verify later.
-    if kind != "danger":
-        ok, note = _generate_verify_record(record)
-        if not ok and note:
-            message = f"{message} {note}"
-
     if ajax:
         return _toast(_domain_card(request, record), kind, message)
-    messages.add_message(
-        request, messages.SUCCESS if kind == "success" else messages.ERROR, message
-    )
+    messages.add_message(request, _MSG_LEVEL[kind], message)
     return redirect("email-domains")
 
 
 @login_required
 @require_POST
 def domain_verify(request, pk):
+    """Run a live DNS check: refresh per-record status and verify on ownership.
+
+    Also serves the client-side auto-poll — it re-checks DNS and swaps the
+    updated card back, so a pending domain flips to verified on its own once
+    the records propagate.
+    """
     admin = _is_admin(request)
     account = get_current_account(request)
     if account is None and not admin:
@@ -187,71 +187,43 @@ def domain_verify(request, pk):
     record = get_object_or_404(_scoped(EmailDomain.objects, request, account), pk=pk)
     ajax = is_ajax(request)
 
-    # No verification record yet (e.g. token was added after provisioning) —
-    # generate it now so the customer has a TXT to add, then ask them to retry.
-    if not record.verify_record_value:
-        ok, note = _generate_verify_record(record)
-        kind = "warning" if ok else "danger"
-        message = note or "Add the verification TXT record, then verify."
-        if ajax:
-            return _toast(_domain_card(request, record), kind, message)
-        messages.add_message(
-            request, messages.SUCCESS if kind == "success" else messages.ERROR, message
-        )
-        return redirect("email-domains")
+    # Older rows (or any that missed it) get an ownership token before we look.
+    if record.ensure_verification_token():
+        record.save(update_fields=["verify_record_name", "verify_record_value"])
 
-    kind, message = "success", f"{record.domain} verified."
-    try:
-        result = ProgstackClient(record.account.progstack_token).check(record.domain)
-        if result["verified"]:
-            record.status = EmailDomain.Status.VERIFIED
-            record.verified_at = timezone.now()
-            record.save(update_fields=["status", "verified_at"])
+    results = dnscheck.check_domain(record)
+    record.dkim_ok = results["dkim"]
+    record.spf_ok = results["spf"]
+    record.dmarc_ok = results["dmarc"]
+    record.last_checked_at = timezone.now()
+    fields = ["dkim_ok", "spf_ok", "dmarc_ok", "last_checked_at"]
+
+    newly_verified = results["verify"] and not record.is_verified
+    if results["verify"] and record.status != EmailDomain.Status.VERIFIED:
+        record.status = EmailDomain.Status.VERIFIED
+        record.verified_at = timezone.now()
+        fields += ["status", "verified_at"]
+    record.save(update_fields=fields)
+
+    if record.is_verified:
+        missing = [r["label"] for r in record.dns_records() if r["required"] and not r["ok"]]
+        if newly_verified:
+            kind, message = "success", f"{record.domain} verified — you're ready to send."
+        elif missing:
+            kind, message = "warning", f"Ownership confirmed, but {', '.join(missing)} isn't live in DNS yet."
         else:
-            kind = "warning"
-            message = result["message"] or "Verification TXT record not found in DNS yet."
-    except ProgstackError as exc:
-        kind, message = "danger", f"Verification failed: {exc}"
+            kind, message = "success", f"{record.domain}: all records look good."
+    elif not results["verify"]:
+        kind, message = "warning", (
+            "We couldn't find your verification record yet. DNS changes can take "
+            "a while to propagate — we'll keep checking automatically."
+        )
+    else:
+        kind, message = "success", "DNS status updated."
 
     if ajax:
         return _toast(_domain_card(request, record), kind, message)
-    messages.add_message(
-        request, messages.SUCCESS if kind == "success" else messages.ERROR, message
-    )
-    return redirect("email-domains")
-
-
-def _generate_verify_record(record) -> tuple[bool, str]:
-    """Fetch and store the Progstack ownership TXT record for ``record``.
-
-    Returns ``(ok, note)``: ``ok`` is False when no token is configured or the
-    API errors. Never raises — callers fold the note into their toast/message.
-    """
-    if not record.account.progstack_token:
-        return False, "Set this account's Progstack API token to verify domains."
-    try:
-        rec = ProgstackClient(record.account.progstack_token).generate(record.domain)
-    except ProgstackError as exc:
-        logger.error("generate verify record for %s: %s", record.domain, exc)
-        return False, f"Could not generate verification record: {exc}"
-    record.verify_record_name = rec.get("name", "")
-    record.verify_record_value = rec.get("value", "")
-    record.save(update_fields=["verify_record_name", "verify_record_value"])
-    return True, ""
-
-
-@login_required
-@require_POST
-def progstack_token_set(request):
-    account = get_current_account(request)
-    if account is None:
-        return redirect("dashboard")
-    account.progstack_token = (request.POST.get("token") or "").strip()
-    account.save(update_fields=["progstack_token"])
-    if account.progstack_token:
-        messages.success(request, "Progstack API token saved.")
-    else:
-        messages.success(request, "Progstack API token cleared.")
+    messages.add_message(request, _MSG_LEVEL[kind], message)
     return redirect("email-domains")
 
 

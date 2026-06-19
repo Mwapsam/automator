@@ -79,7 +79,8 @@
   //   data-reset               -> reset the form on success
   // Server returns an HTML partial (for swap/append) and/or an `X-Toast`
   // header ("type|message"); or JSON { redirect, toast }.
-  async function handleAjaxForm(form) {
+  async function handleAjaxForm(form, opts) {
+    const silent = !!(opts && opts.silent); // auto-poll: swap DOM but stay quiet
     const submitBtn = form.querySelector('[type="submit"]');
     const setBusy = (b) => {
       if (submitBtn) { submitBtn.disabled = b; submitBtn.setAttribute("aria-busy", b ? "true" : "false"); }
@@ -105,7 +106,7 @@
         } else if (toastHeader) {
           msg = decodeToast(toastHeader).message || msg;
         }
-        window.toast("danger", msg);
+        if (!silent) window.toast("danger", msg);
         return;
       }
 
@@ -128,10 +129,12 @@
       if (form.hasAttribute("data-reset")) form.reset();
       if (toastHeader) {
         const t = decodeToast(toastHeader);
-        window.toast(t.type, t.message);
+        // While auto-polling, only surface good news (e.g. "verified") — don't
+        // nag with "not found yet" every cycle.
+        if (!silent || t.type === "success") window.toast(t.type, t.message);
       }
     } catch (e) {
-      window.toast("danger", "Network error — please try again.");
+      if (!silent) window.toast("danger", "Network error — please try again.");
     } finally {
       setBusy(false);
     }
@@ -181,4 +184,17 @@
       handleAjaxForm(form);
     }
   });
+
+  // --- DNS auto-poll -----------------------------------------------------
+  // Re-check pending domains so they flip to verified on their own once DNS
+  // propagates. One global timer; polls only visible, pending, idle check
+  // forms — verified cards drop the data-domain-pending marker and stop.
+  setInterval(function () {
+    if (document.visibilityState && document.visibilityState !== "visible") return;
+    document.querySelectorAll("form[data-dns-check][data-auto]").forEach(function (form) {
+      if (!form.closest('[data-domain-pending="1"]')) return;
+      if (form.classList.contains("is-submitting")) return;
+      handleAjaxForm(form, { silent: true });
+    });
+  }, 20000);
 })();

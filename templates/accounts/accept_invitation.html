@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}{% if invalid %}Invitation{% else %}Join {{ invite.account.company_name }}{% endif %} — {{ site.app_name|default:"Automator" }}{% endblock %}
+{% block content %}
+<div class="min-h-screen flex items-center justify-center px-4 py-12">
+  <div class="w-full max-w-sm">
+    <div class="text-center mb-8">
+      <div class="inline-flex mb-4">{% include "components/brand_mark.html" with class="w-12 h-12" %}</div>
+      {% if invalid %}
+        <h1 class="text-xl font-semibold text-gray-900">Invitation not valid</h1>
+        <p class="text-sm text-gray-400 mt-1">This invitation has expired or already been used.</p>
+      {% else %}
+        <h1 class="text-xl font-semibold text-gray-900">Join {{ invite.account.company_name }}</h1>
+        <p class="text-sm text-gray-400 mt-1">
+          {% if invite.invited_by %}{{ invite.invited_by.get_username }} invited you{% else %}You've been invited{% endif %}
+          as {{ invite.get_role_display }}.
+        </p>
+      {% endif %}
+    </div>
+
+    <div class="card card-pad sm:!p-8">
+      {% if invalid %}
+        <a href="/auth/login/" class="btn btn-primary btn-block">Go to sign in</a>
+
+      {% elif mode == 'join' %}
+        <p class="text-sm text-gray-600 mb-4">You're signed in as <span class="font-medium">{{ user.get_username }}</span>. Accept to join this workspace.</p>
+        <form method="post">{% csrf_token %}
+          <button class="btn btn-primary btn-block" type="submit">Accept invitation</button>
+        </form>
+
+      {% elif mode == 'signin' %}
+        <p class="text-sm text-gray-600 mb-4">There's already an account for <span class="font-medium">{{ invite.email }}</span>. Sign in to accept this invitation.</p>
+        <a href="{{ login_url }}" class="btn btn-primary btn-block">Sign in to accept</a>
+
+      {% else %}
+        <p class="text-sm text-gray-600 mb-5">Create your account for <span class="font-medium">{{ invite.email }}</span>.</p>
+        {% if form.non_field_errors %}
+          <div class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ form.non_field_errors|join:" " }}</div>
+        {% endif %}
+        <form method="post" novalidate class="space-y-4">
+          {% csrf_token %}
+          {% for field in form %}
+          <div>
+            <label for="{{ field.id_for_label }}" class="label">{{ field.label }}</label>
+            <input id="{{ field.id_for_label }}"
+                   type="{% if 'password' in field.name %}password{% else %}text{% endif %}"
+                   name="{{ field.name }}" value="{{ field.value|default:'' }}"
+                   autocomplete="{% if 'password' in field.name %}new-password{% else %}username{% endif %}"
+                   class="input{% if field.errors %} input-error{% endif %}">
+            {% if field.errors %}<p class="field-error">{{ field.errors|join:" " }}</p>
+            {% elif field.help_text %}<p class="help">{{ field.help_text|safe }}</p>{% endif %}
+          </div>
+          {% endfor %}
+          <button class="btn btn-primary btn-block" type="submit">Create account &amp; join</button>
+        </form>
+      {% endif %}
+    </div>
+
+    {% if not invalid %}
+    <p class="text-center text-xs text-gray-400 mt-6">Joining {{ invite.account.company_name }}</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

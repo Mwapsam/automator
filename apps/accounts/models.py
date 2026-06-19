@@ -1,5 +1,9 @@
+import secrets
+from datetime import timedelta
+
 from django.contrib.auth.models import User
 from django.db import models
+from django.utils import timezone
 from django.utils.text import slugify
 
 
@@ -78,3 +82,68 @@ class Membership(models.Model):
 
     def __str__(self):
         return f"{self.user} -> {self.account} ({self.role})"
+
+
+class Invitation(models.Model):
+    """A pending invitation for someone to join an ``Account`` with a role.
+
+    Sent by email with a tokened accept link. Accepting either signs the
+    recipient into an existing account (matched by email) or lets them create
+    one, then creates the corresponding ``Membership``. Owners can never be
+    invited — there is exactly one owner (the account creator).
+    """
+
+    EXPIRY_DAYS = 7
+
+    # Owner is intentionally excluded — you can only invite admins/members.
+    INVITE_ROLES = [
+        (Membership.Role.MEMBER, Membership.Role.MEMBER.label),
+        (Membership.Role.ADMIN, Membership.Role.ADMIN.label),
+    ]
+
+    account = models.ForeignKey(
+        Account, on_delete=models.CASCADE, related_name="invitations"
+    )
+    email = models.EmailField()
+    role = models.CharField(
+        max_length=20, choices=INVITE_ROLES, default=Membership.Role.MEMBER
+    )
+    token = models.CharField(max_length=64, unique=True, db_index=True)
+    invited_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="sent_invitations",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            # At most one *pending* invite per email per account; an accepted
+            # one may coexist (e.g. re-inviting someone after removal).
+            models.UniqueConstraint(
+                fields=["account", "email"],
+                condition=models.Q(accepted_at__isnull=True),
+                name="uniq_pending_invite_per_account_email",
+            ),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self.token:
+            self.token = secrets.token_urlsafe(32)
+        super().save(*args, **kwargs)
+
+    @property
+    def is_accepted(self) -> bool:
+        return self.accepted_at is not None
+
+    @property
+    def expires_at(self):
+        return self.created_at + timedelta(days=self.EXPIRY_DAYS) if self.created_at else None
+
+    @property
+    def is_expired(self) -> bool:
+        return bool(self.created_at) and timezone.now() > self.expires_at
+
+    def __str__(self):
+        return f"invite {self.email} -> {self.account} ({self.role})"
