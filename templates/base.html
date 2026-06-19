@@ -141,8 +141,7 @@
   {% include "components/toast.html" %}
   {% include "components/confirm.html" %}
 
-  {# Self-service onboarding: floating checklist + first-run tour (only while
-     setup is incomplete; the onboarding page already shows the full checklist). #}
+
   {% if onboarding %}
     {% if request.path != "/onboarding/" %}{% include "components/onboarding_widget.html" %}{% endif %}
     {% include "components/welcome_tour.html" %}

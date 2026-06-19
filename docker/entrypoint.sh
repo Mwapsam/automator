@@ -16,7 +16,9 @@ if [ "$DJANGO_ENV" = "production" ]; then
         --access-logfile - \
         --error-logfile -
 else
+    echo "Applying migrations..."
+    python manage.py migrate --noinput
+
     echo "Starting development server..."
-    exec python manage.py migrate --noinput
     exec python manage.py runserver 0.0.0.0:8000
 fi
