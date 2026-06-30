@@ -1,22 +1,49 @@
+"""Mail provider factory.
+
+Resolves the configured backend at runtime via the MAIL_PROVIDER_BACKEND
+Django setting. Supports built-in short aliases and full dotted import paths
+so any EmailProvider implementation can be plugged in without changing this file.
+
+Built-in aliases:
+    stalwart  — Stalwart Mail Server HTTP Management API (production default)
+    null      — no-op stub that succeeds silently (local dev / CI)
+
+Custom providers — set MAIL_PROVIDER_BACKEND to a full dotted import path:
+    MAIL_PROVIDER_BACKEND=myapp.mail.providers.MailcowProvider
+"""
 import importlib
 
 from django.conf import settings
 
-from .base import DkimResult, MailProvider, MailProviderError, ProvisionResult
+from .base import (
+    DkimResult,
+    EmailProvider,
+    MailProvider,
+    MailProviderError,
+    ProvisionResult,
+)
+from apps.email.exceptions import EmailProviderError
+from apps.email.types import (
+    AliasInfo,
+    DkimRecord,
+    DomainInfo,
+    MailboxInfo,
+    OperationResult,
+    QuotaInfo,
+)
 
-# Built-in short-name aliases so .env stays readable.
 _ALIASES: dict[str, str] = {
     "stalwart": "apps.email.providers.stalwart.StalwartProvider",
     "null":     "apps.email.providers.null.NullProvider",
 }
 
 
-def get_mail_provider() -> MailProvider:
-    """Return the configured mail infrastructure provider.
+def get_mail_provider() -> EmailProvider:
+    """Return an instance of the configured mail infrastructure provider.
 
     MAIL_PROVIDER_BACKEND accepts either a short alias ("stalwart", "null") or a
     full dotted import path ("myapp.providers.postfix.PostfixProvider"), so any
-    class that implements MailProvider can be plugged in without touching this
+    class that implements EmailProvider can be plugged in without touching this
     file or any call site.
     """
     backend: str = getattr(settings, "MAIL_PROVIDER_BACKEND", "stalwart")
@@ -29,7 +56,7 @@ def get_mail_provider() -> MailProvider:
     module_path, class_name = dotted.rsplit(".", 1)
     try:
         module = importlib.import_module(module_path)
-        cls: type[MailProvider] = getattr(module, class_name)
+        cls: type[EmailProvider] = getattr(module, class_name)
     except (ImportError, AttributeError) as exc:
         raise ValueError(
             f"Cannot load mail provider {dotted!r}: {exc}"
@@ -38,9 +65,22 @@ def get_mail_provider() -> MailProvider:
 
 
 __all__ = [
+    # Factory
     "get_mail_provider",
-    "MailProvider",
-    "MailProviderError",
+    # Abstract interface
+    "EmailProvider",
+    "MailProvider",          # backwards-compat alias
+    # Exceptions
+    "EmailProviderError",
+    "MailProviderError",     # backwards-compat alias
+    # Legacy result shims
     "ProvisionResult",
     "DkimResult",
+    # Normalized types
+    "DomainInfo",
+    "MailboxInfo",
+    "AliasInfo",
+    "DkimRecord",
+    "QuotaInfo",
+    "OperationResult",
 ]

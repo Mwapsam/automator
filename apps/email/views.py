@@ -218,7 +218,7 @@ def domain_toggle(request, pk):
     ajax = is_ajax(request)
     new_active = not record.is_active
     try:
-        get_mail_provider().set_domain_active(record.domain, new_active)
+        get_mail_provider().set_domain_active(record.domain, active=new_active)
         record.is_active = new_active
         record.save(update_fields=["is_active"])
         kind = "success"
@@ -552,7 +552,7 @@ def alias_create(request):
             return fail(str(exc))
 
     try:
-        get_mail_provider().create_alias(address, goto)
+        get_mail_provider().create_alias(address, [goto])
         alias = EmailAlias.objects.create(
             account=domain.account, domain=domain, address=address, goto=goto
         )

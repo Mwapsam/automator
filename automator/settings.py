@@ -210,9 +210,10 @@ if not DEBUG and BITRIX_ENABLED:
 
 # Stalwart HTTP Management API — provisions per-tenant domains, DKIM,
 # mailboxes and aliases. Port 8080 is internal-only (not published to host).
+# Auth is a static, pre-generated Bearer API key (format "API_..."),
+# created in the Stalwart admin UI/CLI — not a username/password login.
 STALWART_API_BASE = os.getenv("STALWART_API_BASE", "")
-STALWART_ADMIN_USER = os.getenv("STALWART_ADMIN_USER", "")
-STALWART_ADMIN_PASSWORD = os.getenv("STALWART_ADMIN_PASSWORD", "")
+STALWART_API_KEY = os.getenv("STALWART_API_KEY", "")
 
 # Provider selector — swap the implementation without touching business logic.
 MAIL_PROVIDER_BACKEND = os.getenv("MAIL_PROVIDER_BACKEND", "stalwart")
@@ -247,10 +248,19 @@ CELERY_TIMEZONE = TIME_ZONE
 # Email + billing always run; the WhatsApp/Bitrix routes and schedules are only
 # registered when their feature flag is on (see "Feature flags" above).
 CELERY_TASK_ROUTES = {
-    "apps.email.tasks.send_email": {"queue": "email"},
+    # Email provisioning
+    "apps.email.tasks.send_email": {"queue": "outbound"},
     "apps.email.tasks.provision_mailbox": {"queue": "email"},
-    "apps.email.tasks.prune_email_logs": {"queue": "email"},
-    "apps.email.tasks.prune_tracking_tokens": {"queue": "email"},
+    "apps.email.tasks.provision_mailbox_async": {"queue": "email"},
+    "apps.email.tasks.deprovision_mailbox_async": {"queue": "email"},
+    "apps.email.tasks.change_password_async": {"queue": "email"},
+    "apps.email.tasks.set_quota_async": {"queue": "email"},
+    "apps.email.tasks.rotate_dkim_async": {"queue": "email"},
+    "apps.email.tasks.provision_domain_async": {"queue": "email"},
+    # Maintenance
+    "apps.email.tasks.prune_email_logs": {"queue": "celery"},
+    "apps.email.tasks.prune_tracking_tokens": {"queue": "celery"},
+    "apps.email.tasks.prune_provisioning_jobs": {"queue": "celery"},
 }
 
 CELERY_BEAT_SCHEDULE = {
@@ -264,6 +274,10 @@ CELERY_BEAT_SCHEDULE = {
     },
     "prune-tracking-tokens": {
         "task": "apps.email.tasks.prune_tracking_tokens",
+        "schedule": 86400.0,
+    },
+    "prune-provisioning-jobs": {
+        "task": "apps.email.tasks.prune_provisioning_jobs",
         "schedule": 86400.0,
     },
 }

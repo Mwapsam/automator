@@ -1,6 +1,13 @@
 from django.contrib import admin
 
-from apps.email.models import EmailApiKey, EmailDomain, EmailMessage
+from apps.email.models import (
+    AuditLog,
+    EmailApiKey,
+    EmailDomain,
+    EmailMessage,
+    Mailbox,
+    ProvisioningJob,
+)
 
 
 @admin.register(EmailDomain)
@@ -9,7 +16,7 @@ class EmailDomainAdmin(admin.ModelAdmin):
     list_filter = ("status", "dkim_ok", "spf_ok")
     search_fields = ("domain", "account__company_name")
     raw_id_fields = ("account",)
-    readonly_fields = ("created_at", "verified_at")
+    readonly_fields = ("created_at", "verified_at", "last_checked_at")
 
 
 @admin.register(EmailApiKey)
@@ -21,6 +28,15 @@ class EmailApiKeyAdmin(admin.ModelAdmin):
     readonly_fields = ("key", "created_at", "last_used_at")
 
 
+@admin.register(Mailbox)
+class MailboxAdmin(admin.ModelAdmin):
+    list_display = ("email", "account", "status", "quota_mb", "created_at")
+    list_filter = ("status",)
+    search_fields = ("email", "account__company_name")
+    raw_id_fields = ("account", "domain")
+    readonly_fields = ("created_at", "error")
+
+
 @admin.register(EmailMessage)
 class EmailMessageAdmin(admin.ModelAdmin):
     list_display = ("to_email", "from_email", "account", "status", "created_at", "sent_at")
@@ -28,3 +44,37 @@ class EmailMessageAdmin(admin.ModelAdmin):
     search_fields = ("to_email", "from_email", "subject", "account__company_name")
     raw_id_fields = ("account", "domain")
     readonly_fields = ("created_at", "sent_at", "provider_message_id", "error")
+
+
+@admin.register(ProvisioningJob)
+class ProvisioningJobAdmin(admin.ModelAdmin):
+    list_display = (
+        "job_type", "resource_id", "account", "status",
+        "attempts", "created_at", "completed_at",
+    )
+    list_filter = ("status", "job_type", "resource_type")
+    search_fields = ("resource_id", "account__company_name", "celery_task_id")
+    raw_id_fields = ("account",)
+    readonly_fields = (
+        "created_at", "started_at", "completed_at", "celery_task_id", "attempts"
+    )
+
+
+@admin.register(AuditLog)
+class AuditLogAdmin(admin.ModelAdmin):
+    list_display = (
+        "action", "resource_id", "account", "actor", "success", "timestamp"
+    )
+    list_filter = ("success", "action", "resource_type")
+    search_fields = ("resource_id", "account__company_name", "action")
+    raw_id_fields = ("account", "actor")
+    readonly_fields = (
+        "timestamp", "account", "actor", "action", "resource_type",
+        "resource_id", "success", "error", "metadata",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False

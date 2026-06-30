@@ -6,6 +6,121 @@ from django.db import models
 from django.utils import timezone
 
 
+class ProvisioningJob(models.Model):
+    """Tracks the lifecycle of an async Celery provisioning operation.
+
+    Created before the Celery task is dispatched; updated by the task as it
+    runs. Provides operators and tenants with visibility into in-progress or
+    failed provisioning work.
+    """
+
+    class Status(models.TextChoices):
+        PENDING  = "pending",  "Pending"
+        RUNNING  = "running",  "Running"
+        SUCCESS  = "success",  "Success"
+        FAILED   = "failed",   "Failed"
+        RETRYING = "retrying", "Retrying"
+
+    class JobType(models.TextChoices):
+        PROVISION_DOMAIN  = "provision_domain",  "Provision Domain"
+        DEPROVISION_DOMAIN = "deprovision_domain", "Deprovision Domain"
+        PROVISION_MAILBOX = "provision_mailbox", "Provision Mailbox"
+        DEPROVISION_MAILBOX = "deprovision_mailbox", "Deprovision Mailbox"
+        CHANGE_PASSWORD   = "change_password",   "Change Password"
+        SET_QUOTA         = "set_quota",         "Set Quota"
+        ROTATE_DKIM       = "rotate_dkim",       "Rotate DKIM"
+        SUSPEND_MAILBOX   = "suspend_mailbox",   "Suspend Mailbox"
+        PROVISION_ALIAS   = "provision_alias",   "Provision Alias"
+        DEPROVISION_ALIAS = "deprovision_alias", "Deprovision Alias"
+
+    account = models.ForeignKey(
+        "accounts.Account",
+        on_delete=models.CASCADE,
+        related_name="provisioning_jobs",
+    )
+    job_type      = models.CharField(max_length=50, choices=JobType.choices)
+    resource_type = models.CharField(max_length=50)    # "domain" | "mailbox" | "alias"
+    resource_id   = models.CharField(max_length=255)   # domain name / email / alias address
+    status        = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    celery_task_id = models.CharField(max_length=255, blank=True, default="")
+    error         = models.TextField(blank=True, default="")
+    attempts      = models.PositiveSmallIntegerField(default=0)
+    metadata      = models.JSONField(default=dict)
+    created_at    = models.DateTimeField(auto_now_add=True)
+    started_at    = models.DateTimeField(blank=True, null=True)
+    completed_at  = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["account", "status"]),
+            models.Index(fields=["resource_type", "resource_id"]),
+            models.Index(fields=["created_at"]),
+        ]
+
+    def mark_running(self) -> None:
+        self.status = self.Status.RUNNING
+        self.started_at = timezone.now()
+        self.attempts += 1
+        self.save(update_fields=["status", "started_at", "attempts"])
+
+    def mark_success(self) -> None:
+        self.status = self.Status.SUCCESS
+        self.completed_at = timezone.now()
+        self.save(update_fields=["status", "completed_at"])
+
+    def mark_failed(self, error: str, *, retrying: bool = False) -> None:
+        self.status = self.Status.RETRYING if retrying else self.Status.FAILED
+        self.error = (error or "")[:5000]
+        self.completed_at = timezone.now() if not retrying else None
+        update_fields = ["status", "error"]
+        if self.completed_at is not None:
+            update_fields.append("completed_at")
+        self.save(update_fields=update_fields)
+
+    def __str__(self) -> str:
+        return f"{self.job_type} {self.resource_id} [{self.status}]"
+
+
+class AuditLog(models.Model):
+    """Immutable record of every mail provider operation.
+
+    Written by apps.email.audit.record() — never written directly.
+    Rows are never updated or deleted (use a retention policy at the DB level).
+    """
+
+    account = models.ForeignKey(
+        "accounts.Account",
+        on_delete=models.CASCADE,
+        related_name="email_audit_logs",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    action        = models.CharField(max_length=100)   # e.g. "domain.create"
+    resource_type = models.CharField(max_length=50)    # "domain" | "mailbox" | "alias"
+    resource_id   = models.CharField(max_length=255)
+    success       = models.BooleanField(default=True)
+    error         = models.TextField(blank=True, default="")
+    metadata      = models.JSONField(default=dict)
+    timestamp     = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-timestamp"]
+        indexes = [
+            models.Index(fields=["account", "timestamp"]),
+            models.Index(fields=["resource_type", "resource_id"]),
+        ]
+
+    def __str__(self) -> str:
+        status = "OK" if self.success else "FAIL"
+        return f"[{status}] {self.action} {self.resource_id} @ {self.timestamp}"
+
+
 class EmailDomain(models.Model):
     """A per-tenant sending domain provisioned on Mailcow.
 

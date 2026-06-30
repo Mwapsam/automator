@@ -2,9 +2,10 @@
 
 Tracking is fully Django-native — no external API call. Each outgoing link is
 rewritten to a Django redirect endpoint; an open-pixel is injected before
-</body>. Both resolve through EmailTrackingToken rows, which are minted here
-and consumed by the tracking views (apps.email.views.tracking_open / click).
+</body>. Both resolve through EmailTrackingToken rows minted here and consumed
+by the tracking views (apps.email.views.tracking_open / tracking_click).
 """
+from __future__ import annotations
 
 import logging
 import re
@@ -27,6 +28,7 @@ def _tracking_base() -> str:
 
 def _mint_token(message, recipient: str, url: str = "") -> str:
     from apps.email.models import EmailTrackingToken
+
     token = secrets.token_urlsafe(32)
     EmailTrackingToken.objects.create(
         token=token,
@@ -40,7 +42,7 @@ def _mint_token(message, recipient: str, url: str = "") -> str:
 def apply_tracking(html_body: str, message, recipient: str, domain: str) -> str:
     """Rewrite outgoing HTML to inject open-pixel and click-tracking URLs.
 
-    `message` must be an EmailMessage ORM instance (not a raw ID).
+    ``message`` must be an EmailMessage ORM instance (not a raw ID).
     Best-effort: returns the original HTML unchanged on any failure so tracking
     never blocks delivery.
     """
@@ -48,10 +50,8 @@ def apply_tracking(html_body: str, message, recipient: str, domain: str) -> str:
         return html_body
     try:
         base = _tracking_base()
-
         open_token = _mint_token(message, recipient, url="")
         open_url = f"{base}/email/t/open/{open_token}/"
-
         seen: dict[str, str] = {}
         count = 0
 
@@ -95,7 +95,7 @@ def smtp_send(
         password=settings.EMAIL_HOST_PASSWORD,
         use_tls=settings.EMAIL_USE_TLS,
     )
-    message = EmailMultiAlternatives(
+    msg = EmailMultiAlternatives(
         subject=subject,
         body=text_body or " ",
         from_email=from_email,
@@ -103,7 +103,6 @@ def smtp_send(
         connection=connection,
     )
     if html_body:
-        message.attach_alternative(html_body, "text/html")
-
-    message.send(fail_silently=False)
-    return message.extra_headers.get("Message-ID", "")
+        msg.attach_alternative(html_body, "text/html")
+    msg.send(fail_silently=False)
+    return msg.extra_headers.get("Message-ID", "")
