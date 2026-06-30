@@ -351,13 +351,7 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
-    # We terminate TLS at the reverse proxy; trust its forwarded-proto header so
-    # request.is_secure() and the SSL redirect behave correctly behind it.
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-
-# --- Error monitoring (Sentry) ---
-# No-op unless SENTRY_DSN is set, so dev/test runs need nothing. Captures
-# unhandled exceptions from both the web app and Celery workers.
 
 SENTRY_DSN = os.getenv("SENTRY_DSN", "")
 if SENTRY_DSN:
